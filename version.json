@@ -1,7 +1,8 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "updateUrl": "https://Teru0822.github.io/p2p-file-share-updates/index.html",
-  "changelog": "初回リリース"
+  "changelog": "接続キーを英文字だけに変更"
 
 }
+
 
