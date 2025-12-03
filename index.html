@@ -375,7 +375,7 @@
             <div class="connect-box">
                 <div class="connect-title">🔗 相手のコードを入力</div>
                 <div class="connect-input-group">
-                    <input type="text" id="connectInput" class="connect-input" placeholder="6文字コード" maxlength="6">
+                    <input type="text" id="connectInput" class="connect-input" placeholder="6文字コード（英字のみ）" maxlength="6" style="text-transform: uppercase;">
                     <button class="btn btn-connect" onclick="connectToPeer()">接続</button>
                 </div>
                 <div class="connection-error" id="connectionError">接続に失敗しました</div>
@@ -504,12 +504,17 @@
         }
 
         function connectToPeer() {
-            const targetId = document.getElementById('connectInput').value.trim().toUpperCase();
+            const targetId = document.getElementById('connectInput').value.trim().toUpperCase().replace(/[^A-Z]/g, '');
             const errorDiv = document.getElementById('connectionError');
             errorDiv.classList.remove('show');
             
             if (!targetId) {
                 errorDiv.textContent = '接続コードを入力してください';
+                errorDiv.classList.add('show');
+                return;
+            }
+            if (targetId.length !== 6) {
+                errorDiv.textContent = '6文字のコードを入力してください';
                 errorDiv.classList.add('show');
                 return;
             }
