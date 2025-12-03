@@ -464,6 +464,24 @@
             document.body.appendChild(notification);
         });
 
+        // アップデート設定画面を表示
+        ipcRenderer.on('show-update-settings', () => {
+            const url = prompt('アップデートURL（version.json）を入力してください：\n例: https://yourname.github.io/repo/version.json');
+            if (url) {
+                ipcRenderer.invoke('save-update-config', {
+                    enabled: true,
+                    versionUrl: url,
+                    lastCheck: Date.now()
+                }).then(result => {
+                    if (result.success) {
+                        alert('アップデート設定を保存しました！');
+                    } else {
+                        alert('設定の保存に失敗しました: ' + result.error);
+                    }
+                });
+            }
+        });
+
         function init() {
             const saved = localStorage.getItem('p2p_username');
             if (saved) username = saved;
