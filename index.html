@@ -375,7 +375,7 @@
             <div class="connect-box">
                 <div class="connect-title">🔗 相手のコードを入力</div>
                 <div class="connect-input-group">
-                    <input type="text" id="connectInput" class="connect-input" placeholder="6文字コード（英字のみ）" maxlength="6" style="text-transform: uppercase;">
+                    <input type="text" id="connectInput" class="connect-input" placeholder="6桁の数字" maxlength="6" inputmode="numeric" pattern="[0-9]*">
                     <button class="btn btn-connect" onclick="connectToPeer()">接続</button>
                 </div>
                 <div class="connection-error" id="connectionError">接続に失敗しました</div>
@@ -447,40 +447,94 @@
         let permanentPeerId = '';
 
         // アップデート通知を受信
-        ipcRenderer.on('update-downloading', () => {
+        ipcRenderer.on('update-available', (event, updateInfo) => {
+            showUpdateNotification(updateInfo);
+        });
+
+        function showUpdateNotification(updateInfo) {
             const notification = document.createElement('div');
             notification.style.cssText = `
                 position: fixed;
                 top: 20px;
                 right: 20px;
-                background: #3b82f6;
-                color: white;
-                padding: 15px 20px;
-                border-radius: 10px;
-                box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+                background: white;
+                padding: 20px;
+                border-radius: 15px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.3);
                 z-index: 9999;
+                max-width: 400px;
             `;
-            notification.textContent = '📥 アップデートをダウンロード中...';
+            notification.innerHTML = `
+                <div style="font-size: 18px; font-weight: bold; margin-bottom: 10px; color: #333;">
+                    🎉 新しいバージョンが利用可能です
+                </div>
+                <div style="font-size: 14px; color: #666; margin-bottom: 15px;">
+                    バージョン ${updateInfo.version}<br>
+                    ${updateInfo.changelog || ''}
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="updateApp('${updateInfo.version}')" style="flex: 1; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
+                        今すぐ更新
+                    </button>
+                    <button onclick="this.closest('div').parentElement.remove()" style="flex: 1; padding: 10px; background: #e5e7eb; color: #666; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
+                        あとで
+                    </button>
+                </div>
+            `;
             document.body.appendChild(notification);
-        });
+        }
 
-        // アップデート設定画面を表示
-        ipcRenderer.on('show-update-settings', () => {
-            const url = prompt('アップデートURL（version.json）を入力してください：\n例: https://yourname.github.io/repo/version.json');
-            if (url) {
-                ipcRenderer.invoke('save-update-config', {
-                    enabled: true,
-                    versionUrl: url,
-                    lastCheck: Date.now()
-                }).then(result => {
-                    if (result.success) {
-                        alert('アップデート設定を保存しました！');
-                    } else {
-                        alert('設定の保存に失敗しました: ' + result.error);
-                    }
-                });
+        async function updateApp(version) {
+            try {
+                const updateUrl = 'https://teru0822.github.io/p2p-file-share-updates/index.html';
+                
+                // ローディング表示
+                const loading = document.createElement('div');
+                loading.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0,0,0,0.8);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 99999;
+                `;
+                loading.innerHTML = `
+                    <div style="background: white; padding: 40px; border-radius: 20px; text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">📥</div>
+                        <div style="font-size: 18px; font-weight: bold; color: #333;">アップデート中...</div>
+                        <div style="font-size: 14px; color: #666; margin-top: 10px;">しばらくお待ちください</div>
+                    </div>
+                `;
+                document.body.appendChild(loading);
+                
+                // アップデートをダウンロード
+                const result = await ipcRenderer.invoke('download-update', updateUrl, version);
+                
+                if (result.success) {
+                    loading.innerHTML = `
+                        <div style="background: white; padding: 40px; border-radius: 20px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">✅</div>
+                            <div style="font-size: 18px; font-weight: bold; color: #333;">アップデート完了！</div>
+                            <div style="font-size: 14px; color: #666; margin-top: 10px;">アプリを再起動します...</div>
+                        </div>
+                    `;
+                    
+                    setTimeout(async () => {
+                        await ipcRenderer.invoke('restart-app');
+                    }, 2000);
+                } else {
+                    alert('アップデートに失敗しました');
+                    document.body.removeChild(loading);
+                }
+            } catch (err) {
+                console.error('Update error:', err);
+                alert('アップデートエラー: ' + err.message);
             }
-        });
+        }
 
         function init() {
             const saved = localStorage.getItem('p2p_username');
@@ -522,7 +576,7 @@
         }
 
         function connectToPeer() {
-            const targetId = document.getElementById('connectInput').value.trim().toUpperCase().replace(/[^A-Z]/g, '');
+            const targetId = document.getElementById('connectInput').value.trim().replace(/[^0-9]/g, '');
             const errorDiv = document.getElementById('connectionError');
             errorDiv.classList.remove('show');
             
@@ -532,7 +586,7 @@
                 return;
             }
             if (targetId.length !== 6) {
-                errorDiv.textContent = '6文字のコードを入力してください';
+                errorDiv.textContent = '6桁の数字を入力してください';
                 errorDiv.classList.add('show');
                 return;
             }
