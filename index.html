@@ -697,6 +697,15 @@
                     peerId: peerId,
                     groupMembers: Array.from(myGroup)
                 });
+                
+                // 接続確立直後に一度表示を更新（仮表示）
+                if (!connectedPeers[conn.peer]) {
+                    connectedPeers[conn.peer] = {
+                        username: '接続中...',
+                        peerId: conn.peer
+                    };
+                    updatePeerList();
+                }
             });
 
             conn.on('data', (data) => {
