@@ -555,8 +555,14 @@
             if (saved) username = saved;
             
             const shortId = Math.floor(100000 + Math.random() * 900000).toString();
+            console.log("🚀 PeerJS初期化開始... ID:", shortId);
+            document.getElementById('myPeerId').textContent = '接続中...';
             
             peer = new Peer(shortId, {
+                host: '0.peerjs.com',
+                port: 443,
+                path: '/',
+                secure: true,
                 config: {
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
@@ -566,6 +572,7 @@
             });
 
             peer.on('open', (id) => {
+                console.log("🔑 PeerJS接続成功! ID:", id);
                 peerId = id;
                 document.getElementById('myPeerId').textContent = id;
                 document.getElementById('statusText').textContent = `接続中: ${username}`;
