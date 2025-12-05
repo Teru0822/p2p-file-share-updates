@@ -631,13 +631,8 @@
                     document.getElementById('connectInput').focus();
                 }
             }, 10000);
+            conn.timeout = timeout;
             
-            conn.on('open', () => {
-                clearTimeout(timeout);
-                document.getElementById('connectInput').disabled = false;
-                document.getElementById('connectInput').value = '';
-                errorDiv.classList.remove('show');
-            });
             
             conn.on('error', (err) => {
                 clearTimeout(timeout);
@@ -689,6 +684,7 @@
         function setupConnection(conn) {
             conn.on('open', () => {
                 connections[conn.peer] = conn;
+                console.log("✅ 接続確立:", conn.peer);
                 myGroup.add(conn.peer);
                 
                 conn.send({
@@ -705,6 +701,16 @@
                         peerId: conn.peer
                     };
                     updatePeerList();
+                console.log("📝 仮表示追加:", conn.peer);
+                }
+                
+                // タイムアウトをクリア
+                if (conn.timeout) {
+                    clearTimeout(conn.timeout);
+                    document.getElementById('connectInput').disabled = false;
+                    document.getElementById('connectInput').value = '';
+                    const errorDiv = document.getElementById('connectionError');
+                    errorDiv.classList.remove('show');
                 }
             });
 
@@ -713,6 +719,7 @@
                     connectedPeers[conn.peer] = {
                         username: data.username,
                         peerId: data.peerId
+                    console.log("🤝 Handshake受信:", data.username, data.peerId);
                     };
                     
                     // グループメンバーを追加
@@ -831,6 +838,7 @@
                         console.error('File save error:', err);
                         alert(`ファイル保存エラー: ${err.message}`);
                     }
+            console.log("📋 ピアリスト更新:", Object.keys(connectedPeers));
                 }
             });
 
