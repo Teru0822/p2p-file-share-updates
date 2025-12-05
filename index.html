@@ -4,17 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>P2Pファイル共有</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
-    <script>
-        window.addEventListener('DOMContentLoaded', () => {
-            if (typeof Peer === 'undefined') {
-                alert('エラー: PeerJSライブラリが読み込めませんでした');
-                console.error('PeerJS not loaded');
-            } else {
-                console.log('✅ PeerJSライブラリ読み込み成功', Peer);
-            }
-        });
-    </script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -57,53 +46,21 @@
         }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         
-        .peer-id-box {
+        .info-box {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             padding: 20px;
             border-radius: 15px;
             margin-bottom: 20px;
             color: white;
         }
-        .peer-id-label { font-size: 14px; opacity: 0.9; margin-bottom: 8px; }
-        .peer-id-display {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        .info-label { font-size: 14px; opacity: 0.9; margin-bottom: 8px; }
+        .info-value {
+            font-family: monospace;
+            font-size: 18px;
+            font-weight: bold;
             background: rgba(255,255,255,0.2);
             padding: 12px 16px;
             border-radius: 10px;
-            font-family: monospace;
-            font-size: 20px;
-            font-weight: bold;
-            letter-spacing: 2px;
-        }
-        .copy-btn {
-            background: white;
-            color: #667eea;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            margin-left: 10px;
-        }
-        
-        .connect-box {
-            background: #f9fafb;
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 20px;
-        }
-        .connect-title { font-size: 16px; font-weight: bold; color: #333; margin-bottom: 12px; }
-        .connect-input-group { display: flex; gap: 10px; }
-        .connect-input {
-            flex: 1;
-            padding: 12px;
-            border: 2px solid #e5e7eb;
-            border-radius: 10px;
-            font-size: 16px;
-            font-family: monospace;
-            
         }
         
         .peer-item {
@@ -116,109 +73,10 @@
             color: white;
             margin-bottom: 15px;
             transition: all 0.3s;
-            position: relative;
         }
-        .peer-item.selected {
-            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-            box-shadow: 0 0 0 3px #fbbf24;
-        }
-        .peer-item.drag-over {
-            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-            transform: scale(1.02);
-            box-shadow: 0 10px 30px rgba(34, 197, 94, 0.3);
-        }
-        .peer-item.drag-over::after {
-            content: '📁 ここにドロップ';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 24px;
-            font-weight: bold;
-            pointer-events: none;
-        }
-        
-        .checkbox-container {
-            margin-right: 15px;
-        }
-        .checkbox-container input[type="checkbox"] {
-            width: 24px;
-            height: 24px;
-            cursor: pointer;
-        }
-        
-        .send-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: white;
-            padding: 20px;
-            box-shadow: 0 -10px 30px rgba(0,0,0,0.2);
-            display: none;
-            justify-content: center;
-            gap: 15px;
-            z-index: 999;
-        }
-        .send-bar.show {
-            display: flex;
-        }
-        .send-bar-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-weight: bold;
-            color: #333;
-        }
-        
-        .friend-badge {
-            background: #fbbf24;
-            color: #92400e;
-            padding: 2px 8px;
-            border-radius: 8px;
-            font-size: 11px;
-            font-weight: bold;
-            margin-left: 8px;
-        }
-        
-        .add-friend-btn {
-            background: rgba(255,255,255,0.3);
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: bold;
-            margin-left: 10px;
-        }
-        .add-friend-btn:hover {
-            background: rgba(255,255,255,0.5);
-        }
-        
-        .group-badge {
-            display: inline-block;
-            background: #fbbf24;
-            color: #92400e;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: bold;
-            margin-left: 10px;
-        }
-        
-        .connection-error {
-            background: #fee2e2;
-            border: 2px solid #ef4444;
-            color: #991b1b;
-            padding: 12px;
-            border-radius: 10px;
-            margin-top: 10px;
-            font-size: 14px;
-            display: none;
-        }
-        .connection-error.show {
-            display: block;
+        .peer-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
         }
         .peer-info { display: flex; align-items: center; gap: 15px; flex: 1; }
         .peer-avatar {
@@ -232,6 +90,7 @@
             font-size: 24px;
         }
         .peer-name { font-weight: bold; font-size: 18px; }
+        .peer-ip { font-size: 12px; opacity: 0.8; font-family: monospace; }
         
         .btn {
             padding: 12px 24px;
@@ -239,54 +98,21 @@
             border-radius: 10px;
             font-weight: bold;
             cursor: pointer;
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 8px;
         }
-        .btn-connect { background: #667eea; color: white; }
-        .btn-success { background: #22c55e; color: white; }
-        .btn-danger { background: #ef4444; color: white; }
-        
-        .btn-warning { background: #f59e0b; color: white; }
-        .btn-warning:hover { background: #d97706; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5568d3; }
+        .btn-success { background: rgba(255,255,255,0.3); color: white; }
+        .btn-success:hover { background: rgba(255,255,255,0.5); }
         
         .empty-state {
             text-align: center;
             padding: 60px 20px;
-            background: #f9fafb;
-            border-radius: 15px;
+            color: #999;
         }
-        .empty-icon { font-size: 64px; margin-bottom: 15px; }
-        input[type="file"] { display: none; }
-        
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        .modal.show { display: flex; }
-        .modal-content {
-            background: white;
-            padding: 30px;
-            border-radius: 20px;
-            width: 90%;
-            max-width: 400px;
-        }
-        .input-group { margin-bottom: 20px; }
-        .input-group input {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e5e7eb;
-            border-radius: 10px;
-            font-size: 16px;
-        }
+        .empty-icon { font-size: 64px; margin-bottom: 20px; }
         
         .progress-overlay {
             position: fixed;
@@ -305,28 +131,18 @@
             background: white;
             padding: 40px;
             border-radius: 20px;
-            width: 90%;
-            max-width: 500px;
+            min-width: 400px;
+            text-align: center;
         }
-        .progress-title {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: #333;
-        }
-        .progress-file {
-            font-size: 16px;
-            color: #666;
-            margin-bottom: 20px;
-            word-break: break-all;
-        }
+        .progress-title { font-size: 24px; font-weight: bold; margin-bottom: 10px; }
+        .progress-file { color: #666; margin-bottom: 20px; word-break: break-all; }
         .progress-bar-container {
             width: 100%;
             height: 30px;
             background: #e5e7eb;
             border-radius: 15px;
             overflow: hidden;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
         }
         .progress-bar {
             height: 100%;
@@ -338,13 +154,6 @@
             justify-content: center;
             color: white;
             font-weight: bold;
-            font-size: 14px;
-        }
-        .progress-info {
-            display: flex;
-            justify-content: space-between;
-            color: #666;
-            font-size: 14px;
         }
         .cancel-btn {
             margin-top: 20px;
@@ -366,902 +175,360 @@
             <div class="header">
                 <div>
                     <div class="title">📡 P2Pファイル共有</div>
-                    <div class="subtitle" id="statusText" onclick="openUsernameModal()">生成中...</div>
+                    <div class="subtitle" id="statusText" onclick="openUsernameModal()">待機中...</div>
                 </div>
                 <div class="status">
                     <div class="status-dot"></div>
-                    <span id="peerCount">0 台</span>
+                    <span>LAN検索中</span>
                 </div>
             </div>
 
-            <div class="peer-id-box">
-                <div class="peer-id-label">🔑 あなたの接続コード</div>
-                <div class="peer-id-display">
-                    <span id="myPeerId">------</span>
-                    <button class="copy-btn" onclick="copyPeerId()">📋 コピー</button>
+            <div class="info-box">
+                <div class="info-label">💻 あなたのPC名</div>
+                <div class="info-value" id="myName">Loading...</div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom: 20px;">🌐 ネットワーク上のデバイス (<span id="peerCount">0</span>台)</h3>
+                <div id="peerList">
+                    <div class="empty-state">
+                        <div class="empty-icon">🔍</div>
+                        <div>ネットワークをスキャンしています...</div>
+                    </div>
                 </div>
             </div>
-
-            <div class="connect-box">
-                <div class="connect-title">🔗 相手のコードを入力</div>
-                <div class="connect-input-group">
-                    <input type="text" id="connectInput" class="connect-input" placeholder="6桁の数字" maxlength="6" inputmode="numeric" pattern="[0-9]*">
-                    <button class="btn btn-connect" onclick="connectToPeer()">接続</button>
-                </div>
-                <div class="connection-error" id="connectionError">接続に失敗しました</div>
-            </div>
-
-            <div style="font-size: 20px; font-weight: bold; color: #333; margin-bottom: 20px;">
-                💻 接続中のデバイス
-                <span class="group-badge" id="groupBadge" style="display: none;">グループ</span>
-            </div>
-
-            <div id="peerList">
-                <div class="empty-state">
-                    <div class="empty-icon">📡</div>
-                    <div style="color: #666;">接続中のデバイスがありません</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="send-bar" id="sendBar">
-        <div class="send-bar-info">
-            <span id="selectedCount">0人選択中</span>
-        </div>
-        <button class="btn btn-success" onclick="sendToSelected()">📤 選択した人に送信</button>
-        <button class="btn btn-warning" onclick="sendToAll()">📢 全員に送信</button>
-        <button class="btn" style="background: #e5e7eb; color: #666;" onclick="clearSelection()">✕ 選択解除</button>
-    </div>
-
-    <input type="file" id="fileInput">
-
-    <div class="modal" id="usernameModal">
-        <div class="modal-content">
-            <h2>👤 ユーザーネーム設定</h2>
-            <div class="input-group">
-                <input type="text" id="usernameInput" placeholder="例: 太郎のPC" maxlength="20">
-            </div>
-            <button class="btn btn-connect" onclick="saveUsername()" style="width: 100%;">保存</button>
         </div>
     </div>
 
     <div class="progress-overlay" id="progressOverlay">
         <div class="progress-box">
             <div class="progress-title" id="progressTitle">📤 送信中...</div>
-            <div class="progress-file" id="progressFile">ファイル名</div>
+            <div class="progress-file" id="progressFile"></div>
             <div class="progress-bar-container">
                 <div class="progress-bar" id="progressBar">0%</div>
             </div>
-            <div class="progress-info">
-                <span id="progressChunks">0 / 0 チャンク</span>
-                <span id="progressSize">0 MB / 0 MB</span>
-            </div>
+            <div id="progressText" style="color: #666; margin-top: 10px;"></div>
             <button class="cancel-btn" onclick="cancelTransfer()">キャンセル</button>
         </div>
     </div>
 
+    <input type="file" id="fileInput" style="display: none;" multiple>
+
     <script>
-        const { hostname } = require('os');
         const { ipcRenderer } = require('electron');
+        const os = require('os');
+        const dgram = require('dgram');
+        const net = require('net');
         
-        let peer = null;
-        let peerId = '';
-        let username = hostname() || `PC_${Math.floor(Math.random() * 10000)}`;
-        let connections = {};
-        let connectedPeers = {};
-        let myGroup = new Set();
-        let connectionAttempts = {};
-        let selectedPeers = new Set();
-        let friends = [];
-        let permanentPeerId = '';
-
-        // アップデート通知を受信
-        ipcRenderer.on('update-available', (event, updateInfo) => {
-            showUpdateNotification(updateInfo);
-        });
-
-        function showUpdateNotification(updateInfo) {
-            const notification = document.createElement('div');
-            notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: white;
-                padding: 20px;
-                border-radius: 15px;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-                z-index: 9999;
-                max-width: 400px;
-            `;
-            notification.innerHTML = `
-                <div style="font-size: 18px; font-weight: bold; margin-bottom: 10px; color: #333;">
-                    🎉 新しいバージョンが利用可能です
-                </div>
-                <div style="font-size: 14px; color: #666; margin-bottom: 15px;">
-                    バージョン ${updateInfo.version}<br>
-                    ${updateInfo.changelog || ''}
-                </div>
-                <div style="display: flex; gap: 10px;">
-                    <button onclick="updateApp('${updateInfo.version}')" style="flex: 1; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
-                        今すぐ更新
-                    </button>
-                    <button onclick="this.closest('div').parentElement.remove()" style="flex: 1; padding: 10px; background: #e5e7eb; color: #666; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
-                        あとで
-                    </button>
-                </div>
-            `;
-            document.body.appendChild(notification);
+        // 設定
+        const BROADCAST_PORT = 45678;
+        const TRANSFER_PORT = 45679;
+        const BROADCAST_INTERVAL = 5000; // 5秒ごとにブロードキャスト
+        
+        let myName = os.hostname() || 'Unknown PC';
+        let myIP = getLocalIP();
+        let discoveredPeers = new Map();
+        let broadcastSocket;
+        let transferServer;
+        let currentTransfer = null;
+        
+        // ローカルIPアドレスを取得
+        function getLocalIP() {
+            const interfaces = os.networkInterfaces();
+            for (const name of Object.keys(interfaces)) {
+                for (const iface of interfaces[name]) {
+                    if (iface.family === 'IPv4' && !iface.internal) {
+                        return iface.address;
+                    }
+                }
+            }
+            return '127.0.0.1';
         }
-
-        async function updateApp(version) {
-            try {
-                const updateUrl = 'https://teru0822.github.io/p2p-file-share-updates/index.html';
+        
+        // 初期化
+        function init() {
+            document.getElementById('myName').textContent = myName;
+            document.getElementById('statusText').textContent = `待機中 (${myIP})`;
+            
+            setupBroadcast();
+            setupTransferServer();
+            startBroadcasting();
+            
+            console.log('📡 IPMessenger風モード起動');
+            console.log('💻 PC名:', myName);
+            console.log('🌐 IP:', myIP);
+        }
+        
+        // ブロードキャスト設定
+        function setupBroadcast() {
+            broadcastSocket = dgram.createSocket('udp4');
+            
+            broadcastSocket.on('error', (err) => {
+                console.error('Broadcast error:', err);
+            });
+            
+            broadcastSocket.on('message', (msg, rinfo) => {
+                try {
+                    const data = JSON.parse(msg.toString());
+                    
+                    // 自分自身は無視
+                    if (rinfo.address === myIP) return;
+                    
+                    if (data.type === 'announce') {
+                        addPeer(data.name, rinfo.address);
+                    }
+                } catch (err) {
+                    console.error('Message parse error:', err);
+                }
+            });
+            
+            broadcastSocket.bind(BROADCAST_PORT, () => {
+                broadcastSocket.setBroadcast(true);
+                console.log('✅ ブロードキャスト受信開始:', BROADCAST_PORT);
+            });
+        }
+        
+        // ファイル転送サーバー設定
+        function setupTransferServer() {
+            transferServer = net.createServer((socket) => {
+                console.log('📥 接続受信:', socket.remoteAddress);
                 
-                console.log('Starting update to version:', version);
-                console.log('Download URL:', updateUrl);
+                let receivedData = Buffer.alloc(0);
+                let fileInfo = null;
+                let expectedSize = 0;
                 
-                // ローディング表示
-                const loading = document.createElement('div');
-                loading.style.cssText = `
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    background: rgba(0,0,0,0.8);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    z-index: 99999;
-                `;
-                loading.innerHTML = `
-                    <div style="background: white; padding: 40px; border-radius: 20px; text-align: center;">
-                        <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">📥</div>
-                        <div style="font-size: 18px; font-weight: bold; color: #333;">アップデート中...</div>
-                        <div style="font-size: 14px; color: #666; margin-top: 10px;">しばらくお待ちください</div>
-                        <div id="updateLog" style="font-size: 12px; color: #999; margin-top: 10px; max-width: 400px; word-break: break-all;"></div>
+                socket.on('data', (data) => {
+                    receivedData = Buffer.concat([receivedData, data]);
+                    
+                    // ファイル情報をまだ受信していない場合
+                    if (!fileInfo && receivedData.length >= 4) {
+                        const headerSize = receivedData.readUInt32BE(0);
+                        
+                        if (receivedData.length >= 4 + headerSize) {
+                            const headerJSON = receivedData.slice(4, 4 + headerSize).toString();
+                            fileInfo = JSON.parse(headerJSON);
+                            expectedSize = fileInfo.size;
+                            receivedData = receivedData.slice(4 + headerSize);
+                            
+                            console.log('📄 ファイル情報受信:', fileInfo.name, formatBytes(fileInfo.size));
+                            showProgress('📥 受信中...', fileInfo.name, fileInfo.size);
+                        }
+                    }
+                    
+                    // 進捗更新
+                    if (fileInfo) {
+                        const progress = (receivedData.length / expectedSize) * 100;
+                        updateProgress(receivedData.length, expectedSize, expectedSize);
+                    }
+                });
+                
+                socket.on('end', async () => {
+                    if (fileInfo && receivedData.length === expectedSize) {
+                        console.log('✅ 受信完了:', fileInfo.name);
+                        
+                        // ファイルを保存
+                        const result = await ipcRenderer.invoke('save-file', fileInfo.name, Array.from(receivedData));
+                        
+                        hideProgress();
+                        
+                        if (result.success) {
+                            alert(`✅ ファイル受信完了！\n\nファイル: ${fileInfo.name}\n保存先: ${result.filePath}`);
+                        } else {
+                            alert(`❌ 保存エラー: ${result.error}`);
+                        }
+                    }
+                });
+                
+                socket.on('error', (err) => {
+                    console.error('Socket error:', err);
+                    hideProgress();
+                });
+            });
+            
+            transferServer.listen(TRANSFER_PORT, () => {
+                console.log('✅ ファイル転送サーバー起動:', TRANSFER_PORT);
+            });
+        }
+        
+        // 定期的なブロードキャスト
+        function startBroadcasting() {
+            const message = JSON.stringify({
+                type: 'announce',
+                name: myName,
+                ip: myIP
+            });
+            
+            setInterval(() => {
+                broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255', (err) => {
+                    if (err) console.error('Broadcast error:', err);
+                });
+            }, BROADCAST_INTERVAL);
+            
+            // 初回即座に送信
+            broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255');
+        }
+        
+        // ピアを追加
+        function addPeer(name, ip) {
+            if (!discoveredPeers.has(ip)) {
+                console.log('🆕 新しいデバイス発見:', name, ip);
+            }
+            
+            discoveredPeers.set(ip, {
+                name: name,
+                ip: ip,
+                lastSeen: Date.now()
+            });
+            
+            updatePeerList();
+        }
+        
+        // ピアリスト更新
+        function updatePeerList() {
+            const now = Date.now();
+            const TIMEOUT = 15000; // 15秒応答がなければ削除
+            
+            // タイムアウトしたピアを削除
+            for (const [ip, peer] of discoveredPeers) {
+                if (now - peer.lastSeen > TIMEOUT) {
+                    discoveredPeers.delete(ip);
+                }
+            }
+            
+            const peers = Array.from(discoveredPeers.values());
+            document.getElementById('peerCount').textContent = peers.length;
+            
+            const list = document.getElementById('peerList');
+            if (peers.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">🔍</div>
+                        <div>ネットワーク上にデバイスが見つかりません</div>
                     </div>
                 `;
-                document.body.appendChild(loading);
-                
-                const updateLog = document.getElementById('updateLog');
-                updateLog.textContent = 'ダウンロード開始...';
-                
-                // アップデートをダウンロード
-                const result = await ipcRenderer.invoke('download-update', updateUrl, version);
-                
-                console.log('Update result:', result);
-                updateLog.textContent = 'ダウンロード完了！';
-                
-                if (result.success) {
-                    loading.innerHTML = `
-                        <div style="background: white; padding: 40px; border-radius: 20px; text-align: center;">
-                            <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">✅</div>
-                            <div style="font-size: 18px; font-weight: bold; color: #333;">アップデート完了！</div>
-                            <div style="font-size: 14px; color: #666; margin-top: 10px;">バージョン ${version}</div>
-                            <div style="font-size: 14px; color: #666; margin-top: 5px;">アプリを再起動します...</div>
+            } else {
+                list.innerHTML = peers.map(p => `
+                    <div class="peer-item">
+                        <div class="peer-info">
+                            <div class="peer-avatar">💻</div>
+                            <div>
+                                <div class="peer-name">${p.name}</div>
+                                <div class="peer-ip">${p.ip}</div>
+                            </div>
                         </div>
-                    `;
+                        <button class="btn btn-success" onclick="sendFile('${p.ip}')">📤 送信</button>
+                    </div>
+                `).join('');
+            }
+        }
+        
+        // ファイル送信
+        function sendFile(targetIP) {
+            const fileInput = document.getElementById('fileInput');
+            fileInput.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    sendFileData(targetIP, file);
+                }
+                e.target.value = '';
+            };
+            fileInput.click();
+        }
+        
+        // ファイルデータ送信
+        function sendFileData(targetIP, file) {
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                const fileData = Buffer.from(e.target.result);
+                const fileInfo = {
+                    name: file.name,
+                    type: file.type,
+                    size: file.size
+                };
+                
+                const client = net.createConnection({ port: TRANSFER_PORT, host: targetIP }, () => {
+                    console.log('🔗 接続確立:', targetIP);
+                    showProgress('📤 送信中...', file.name, file.size);
                     
-                    console.log('Restarting app in 2 seconds...');
+                    // ヘッダー送信
+                    const headerJSON = JSON.stringify(fileInfo);
+                    const headerBuffer = Buffer.from(headerJSON);
+                    const headerSize = Buffer.alloc(4);
+                    headerSize.writeUInt32BE(headerBuffer.length, 0);
                     
-                    setTimeout(async () => {
-                        await ipcRenderer.invoke('restart-app');
-                    }, 2000);
-                } else {
-                    console.error('Update failed:', result);
-                    alert('アップデートに失敗しました');
-                    document.body.removeChild(loading);
-                }
-            } catch (err) {
-                console.error('Update error:', err);
-                alert('アップデートエラー: ' + err.message);
-            }
+                    client.write(headerSize);
+                    client.write(headerBuffer);
+                    
+                    // ファイルデータ送信
+                    const CHUNK_SIZE = 64 * 1024;
+                    let offset = 0;
+                    
+                    function sendChunk() {
+                        if (currentTransfer && currentTransfer.cancelled) {
+                            client.end();
+                            hideProgress();
+                            return;
+                        }
+                        
+                        if (offset >= fileData.length) {
+                            client.end();
+                            hideProgress();
+                            alert(`✅ 送信完了！\n\nファイル: ${file.name}`);
+                            return;
+                        }
+                        
+                        const chunk = fileData.slice(offset, offset + CHUNK_SIZE);
+                        client.write(chunk, () => {
+                            offset += chunk.length;
+                            updateProgress(offset, fileData.length, fileData.length);
+                            setTimeout(sendChunk, 10);
+                        });
+                    }
+                    
+                    currentTransfer = { cancelled: false };
+                    sendChunk();
+                });
+                
+                client.on('error', (err) => {
+                    console.error('Transfer error:', err);
+                    hideProgress();
+                    alert('送信エラー: ' + err.message);
+                });
+            };
+            
+            reader.readAsArrayBuffer(file);
         }
-
-        function init() {
-            const saved = localStorage.getItem('p2p_username');
-            if (saved) username = saved;
-            
-            const shortId = Math.floor(100000 + Math.random() * 900000).toString();
-            console.log("🚀 PeerJS初期化開始... ID:", shortId);
-            document.getElementById('myPeerId').textContent = '生成中...';
-            
-            // デフォルトのPeerJSサーバーを使用（最も安定）
-            peer = new Peer(shortId, {
-                debug: 2,  // デバッグレベル最大
-                config: {
-                    iceServers: [
-                        { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' },
-                        { urls: 'stun:stun2.l.google.com:19302' }
-                    ]
-                }
-            });
-
-            peer.on('open', (id) => {
-                console.log("🔑 PeerJS接続成功! ID:", id);
-                peerId = id;
-                document.getElementById('myPeerId').textContent = id;
-                document.getElementById('statusText').textContent = `接続中: ${username}`;
-            });
-
-            peer.on('connection', (conn) => {
-                setupConnection(conn);
-            });
-
-            
-            peer.on('disconnected', () => {
-                console.warn("⚠️ PeerJSサーバーから切断されました");
-                document.getElementById('myPeerId').textContent = '切断';
-            });
-            
-            peer.on('close', () => {
-                console.warn("⚠️ PeerJS接続が閉じられました");
-            });
-            peer.on('error', (err) => {
-                console.error('Peer error:', err);
-                alert('接続エラー: ' + err.message);
-            });
-        }
-
-        function copyPeerId() {
-            const { clipboard } = require('electron');
-            clipboard.writeText(peerId);
-            const btn = event.target;
-            btn.textContent = '✅ コピー完了';
-            setTimeout(() => btn.textContent = '📋 コピー', 2000);
-        }
-
-        function connectToPeer() {
-            const targetId = document.getElementById('connectInput').value.trim().replace(/[^0-9]/g, '');
-            const errorDiv = document.getElementById('connectionError');
-            errorDiv.classList.remove('show');
-            
-            if (!targetId) {
-                errorDiv.textContent = '接続コードを入力してください';
-                errorDiv.classList.add('show');
-                return;
-            }
-            if (targetId.length !== 6) {
-                errorDiv.textContent = '6桁の数字を入力してください';
-                errorDiv.classList.add('show');
-                return;
-            }
-            if (targetId === peerId) {
-                errorDiv.textContent = '自分自身には接続できません';
-                errorDiv.classList.add('show');
-                return;
-            }
-            if (connectedPeers[targetId]) {
-                errorDiv.textContent = '既に接続済みです';
-                errorDiv.classList.add('show');
-                return;
-            }
-
-            // 接続試行中の表示
-            document.getElementById('connectInput').disabled = true;
-            
-            const conn = peer.connect(targetId, { reliable: true });
-            
-            // タイムアウト設定（10秒）
-            const timeout = setTimeout(() => {
-                if (!connectedPeers[targetId]) {
-                    conn.close();
-                    errorDiv.textContent = '接続に失敗しました。コードを確認してください';
-                    errorDiv.classList.add('show');
-                    document.getElementById('connectInput').disabled = false;
-                    document.getElementById('connectInput').value = '';
-                    document.getElementById('connectInput').focus();
-                }
-            }, 10000);
-            conn.timeout = timeout;
-            
-            
-            conn.on('error', (err) => {
-                clearTimeout(timeout);
-                console.error('Connection error:', err);
-                errorDiv.textContent = '接続エラー: ' + err.type;
-                errorDiv.classList.add('show');
-                document.getElementById('connectInput').disabled = false;
-                document.getElementById('connectInput').value = '';
-            });
-            
-            setupConnection(conn);
-        }
-
-        const fileTransfers = {};
-        let currentTransfer = null;
-
+        
+        // 進捗表示
         function showProgress(title, fileName, fileSize) {
             document.getElementById('progressTitle').textContent = title;
             document.getElementById('progressFile').textContent = fileName;
             document.getElementById('progressBar').style.width = '0%';
             document.getElementById('progressBar').textContent = '0%';
-            document.getElementById('progressChunks').textContent = '0 / 0 チャンク';
-            document.getElementById('progressSize').textContent = `0 MB / ${formatBytes(fileSize)}`;
             document.getElementById('progressOverlay').classList.add('show');
         }
-
+        
         function updateProgress(current, total, fileSize) {
-            const percentage = Math.round((current / total) * 100);
-            const currentSize = Math.round((current / total) * fileSize);
-            
-            document.getElementById('progressBar').style.width = percentage + '%';
-            document.getElementById('progressBar').textContent = percentage + '%';
-            document.getElementById('progressChunks').textContent = `${current} / ${total} チャンク`;
-            document.getElementById('progressSize').textContent = `${formatBytes(currentSize)} / ${formatBytes(fileSize)}`;
+            const percent = Math.round((current / total) * 100);
+            document.getElementById('progressBar').style.width = percent + '%';
+            document.getElementById('progressBar').textContent = percent + '%';
+            document.getElementById('progressText').textContent = 
+                `${formatBytes(current)} / ${formatBytes(fileSize)}`;
         }
-
+        
         function hideProgress() {
             document.getElementById('progressOverlay').classList.remove('show');
             currentTransfer = null;
         }
-
+        
         function cancelTransfer() {
             if (currentTransfer) {
                 currentTransfer.cancelled = true;
             }
             hideProgress();
         }
-
-        function setupConnection(conn) {
-            conn.on('open', () => {
-                connections[conn.peer] = conn;
-                console.log("✅ 接続確立:", conn.peer);
-                myGroup.add(conn.peer);
-                
-                conn.send({
-                    type: 'handshake',
-                    username: username,
-                    peerId: peerId,
-                    groupMembers: Array.from(myGroup)
-                });
-                
-                // 接続確立直後に一度表示を更新（仮表示）
-                if (!connectedPeers[conn.peer]) {
-                    connectedPeers[conn.peer] = {
-                        username: '生成中...',
-                        peerId: conn.peer
-                    };
-                    updatePeerList();
-                console.log("📝 仮表示追加:", conn.peer);
-                }
-                
-                // タイムアウトをクリア
-                if (conn.timeout) {
-                    clearTimeout(conn.timeout);
-                    document.getElementById('connectInput').disabled = false;
-                    document.getElementById('connectInput').value = '';
-                    const errorDiv = document.getElementById('connectionError');
-                    errorDiv.classList.remove('show');
-                }
-            });
-
-            conn.on('data', (data) => {
-                if (data.type === 'handshake') {
-                    connectedPeers[conn.peer] = {
-                        username: data.username,
-                        peerId: data.peerId
-                    console.log("🤝 Handshake受信:", data.username, data.peerId);
-                    };
-                    
-                    // グループメンバーを追加
-                    if (data.groupMembers) {
-                        data.groupMembers.forEach(memberId => {
-                            if (memberId !== peerId && !connectedPeers[memberId]) {
-                                // グループメンバーに自動接続
-                                const newConn = peer.connect(memberId, { reliable: true });
-                                setupConnection(newConn);
-                            }
-                        });
-                    }
-                    
-                    updatePeerList();
-                    
-                    if (!conn.sentHandshake) {
-                        conn.send({
-                            type: 'handshake',
-                            username: username,
-                            peerId: peerId,
-                            groupMembers: Array.from(myGroup)
-                        });
-                        conn.sentHandshake = true;
-                    }
-                    
-                    // グループの他メンバーに新メンバーを通知
-                    Object.values(connections).forEach(c => {
-                        if (c.peer !== conn.peer) {
-                            c.send({
-                                type: 'new_member',
-                                peerId: conn.peer,
-                                username: data.username
-                            });
-                        }
-                    });
-                } else if (data.type === 'username_change') {
-                    // 名前変更を受信
-                    if (connectedPeers[conn.peer]) {
-                        connectedPeers[conn.peer].username = data.username;
-                        updatePeerList();
-                    }
-                } else if (data.type === 'new_member') {
-                    // 新しいグループメンバーに接続
-                    if (data.peerId !== peerId && !connectedPeers[data.peerId]) {
-                        const newConn = peer.connect(data.peerId, { reliable: true });
-                        setupConnection(newConn);
-                    }
-                } else if (data.type === 'file_start') {
-                    // ファイル受信開始
-                    fileTransfers[data.fileId] = {
-                        fileName: data.fileName,
-                        filePath: data.filePath || data.fileName,
-                        fileType: data.fileType,
-                        size: data.size,
-                        totalChunks: data.totalChunks,
-                        from: data.from,
-                        chunks: [],
-                        receivedChunks: 0
-                    };
-                    showProgress('📥 受信中...', data.filePath || data.fileName, data.size);
-                } else if (data.type === 'file_chunk') {
-                    // チャンクを受信
-                    const transfer = fileTransfers[data.fileId];
-                    if (transfer) {
-                        transfer.chunks[data.chunkIndex] = data.data;
-                        transfer.receivedChunks++;
-                        
-                        updateProgress(transfer.receivedChunks, transfer.totalChunks, transfer.size);
-                    }
-                } else if (data.type === 'file_end') {
-                    // ファイル受信完了
-                    const transfer = fileTransfers[data.fileId];
-                    if (transfer) {
-                        try {
-                            // 全チャンクを結合
-                            const totalSize = transfer.chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
-                            const combined = new Uint8Array(totalSize);
-                            let offset = 0;
-                            
-                            for (const chunk of transfer.chunks) {
-                                combined.set(new Uint8Array(chunk), offset);
-                                offset += chunk.byteLength;
-                            }
-
-                            // メインプロセスに保存を依頼（ファイルパスを含む）
-                            const { ipcRenderer } = require('electron');
-                            ipcRenderer.invoke('save-file', transfer.filePath, combined.buffer).then(result => {
-                                hideProgress();
-                                if (result.success) {
-                                    alert(`📥 ファイル受信完了！\n\n送信者: ${transfer.from}\nファイル: ${transfer.filePath}\nサイズ: ${formatBytes(transfer.size)}\n保存先: ${result.filePath}`);
-                                } else {
-                                    alert(`ファイル保存エラー: ${result.error}`);
-                                }
-                            });
-
-                            // 転送情報をクリア
-                            delete fileTransfers[data.fileId];
-                        } catch (err) {
-                            console.error('File assembly error:', err);
-                            hideProgress();
-                            alert(`ファイル組み立てエラー: ${err.message}`);
-                        }
-                    }
-                } else if (data.type === 'file') {
-                    // 旧形式の互換性維持（小さいファイル用）
-                    try {
-                        const { ipcRenderer } = require('electron');
-                        ipcRenderer.invoke('save-file', data.fileName, data.content).then(result => {
-                            if (result.success) {
-                                alert(`📥 ファイル受信完了！\n\n送信者: ${data.from}\nファイル: ${data.fileName}\nサイズ: ${formatBytes(data.size)}\n保存先: ${result.filePath}`);
-                            } else {
-                                alert(`ファイル保存エラー: ${result.error}`);
-                            }
-                        });
-                    } catch (err) {
-                        console.error('File save error:', err);
-                        alert(`ファイル保存エラー: ${err.message}`);
-                    }
-            console.log("📋 ピアリスト更新:", Object.keys(connectedPeers));
-                }
-            });
-
-            conn.on('close', () => {
-                delete connections[conn.peer];
-                delete connectedPeers[conn.peer];
-                updatePeerList();
-            });
-
-            conn.on('error', (err) => {
-                console.error('Connection error:', err);
-            });
-        }
-
-        function updatePeerList() {
-            const peers = Object.values(connectedPeers);
-            document.getElementById('peerCount').textContent = `${peers.length} 台`;
-            
-            // グループバッジの表示
-            const groupBadge = document.getElementById('groupBadge');
-            if (peers.length >= 2) {
-                groupBadge.style.display = 'inline-block';
-                groupBadge.textContent = `グループ (${peers.length + 1}人)`;
-            } else {
-                groupBadge.style.display = 'none';
-            }
-            
-            // 送信バーの表示更新
-            updateSendBar();
-            
-            const list = document.getElementById('peerList');
-            if (peers.length === 0) {
-                list.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">📡</div>
-                        <div style="color: #666;">接続中のデバイスがありません</div>
-                    </div>
-                `;
-            } else {
-                list.innerHTML = peers.map(p => {
-                    const isSelected = selectedPeers.has(p.peerId);
-                    const isFriendStatus = isFriend(p.peerId);
-                    return `
-                    <div class="peer-item ${isSelected ? 'selected' : ''}" id="peer-${p.peerId}" 
-                         ondragover="handleDragOver(event)" 
-                         ondragleave="handleDragLeave(event)"
-                         ondrop="handleDrop(event, '${p.peerId}')">
-                        <div class="checkbox-container">
-                            <input type="checkbox" 
-                                   ${isSelected ? 'checked' : ''} 
-                                   onchange="togglePeerSelection('${p.peerId}')"
-                                   onclick="event.stopPropagation()">
-                        </div>
-                        <div class="peer-info" style="flex: 1;">
-                            <div class="peer-avatar">💻</div>
-                            <div>
-                                <div class="peer-name">
-                                    ${p.username}
-                                    ${isFriendStatus ? '<span class="friend-badge">フレンド</span>' : ''}
-                                </div>
-                                <div style="font-size: 12px; opacity: 0.8;">ファイル・フォルダをドラッグ&ドロップ</div>
-                            </div>
-                        </div>
-                        <div style="display: flex; gap: 10px;">
-                            ${!isFriendStatus ? `
-                                <button class="add-friend-btn" onclick="event.stopPropagation(); addFriend('${p.peerId}')">
-                                    ★ フレンド登録
-                                </button>
-                            ` : `
-                                <button class="add-friend-btn" style="background: rgba(239,68,68,0.3);" onclick="event.stopPropagation(); removeFriend('${p.peerId}')">
-                                    ☆ 解除
-                                </button>
-                            `}
-                            <button class="btn btn-success" onclick="sendFile('${p.peerId}')">📤 送信</button>
-                            <button class="btn btn-danger" onclick="disconnectPeer('${p.peerId}')">切断</button>
-                        </div>
-                    </div>
-                `}).join('');
-            }
-        }
-
-        function togglePeerSelection(peerId) {
-            if (selectedPeers.has(peerId)) {
-                selectedPeers.delete(peerId);
-            } else {
-                selectedPeers.add(peerId);
-            }
-            updatePeerList();
-        }
-
-        function updateSendBar() {
-            const sendBar = document.getElementById('sendBar');
-            const selectedCount = document.getElementById('selectedCount');
-            
-            if (selectedPeers.size > 0) {
-                sendBar.classList.add('show');
-                selectedCount.textContent = `${selectedPeers.size}人選択中`;
-            } else {
-                sendBar.classList.remove('show');
-            }
-        }
-
-        function clearSelection() {
-            selectedPeers.clear();
-            updatePeerList();
-        }
-
-        function sendToSelected() {
-            if (selectedPeers.size === 0) {
-                alert('送信先を選択してください');
-                return;
-            }
-            
-            const fileInput = document.getElementById('fileInput');
-            fileInput.onchange = (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    const targets = Array.from(selectedPeers);
-                    sendToMultiple(targets, file);
-                }
-                e.target.value = '';
-            };
-            fileInput.click();
-        }
-
-        function sendToAll() {
-            const peers = Object.keys(connectedPeers);
-            if (peers.length === 0) {
-                alert('送信先がありません');
-                return;
-            }
-            
-            const fileInput = document.getElementById('fileInput');
-            fileInput.onchange = (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    sendToMultiple(peers, file);
-                }
-                e.target.value = '';
-            };
-            fileInput.click();
-        }
-
-        function sendToMultiple(targets, file) {
-            let currentIndex = 0;
-            
-            function sendNext() {
-                if (currentIndex >= targets.length) {
-                    alert(`✅ 全員に送信完了！\n\n送信先: ${targets.length}人\nファイル: ${file.name}`);
-                    return;
-                }
-                
-                const targetId = targets[currentIndex];
-                sendFileData(targetId, file, file.name, () => {
-                    currentIndex++;
-                    if (currentIndex < targets.length) {
-                        setTimeout(sendNext, 500);
-                    } else {
-                        alert(`✅ 全員に送信完了！\n\n送信先: ${targets.length}人\nファイル: ${file.name}`);
-                    }
-                });
-            }
-            
-            sendNext();
-        }
-
-        function handleDragOver(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.currentTarget.classList.add('drag-over');
-        }
-
-        function handleDragLeave(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.currentTarget.classList.remove('drag-over');
-        }
-
-        function handleDrop(e, targetPeerId) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.currentTarget.classList.remove('drag-over');
-            
-            const items = e.dataTransfer.items;
-            if (items.length > 0) {
-                // フォルダまたはファイルを処理
-                processDroppedItems(items, targetPeerId);
-            }
-        }
-
-        async function processDroppedItems(items, targetPeerId) {
-            const files = [];
-            let folderName = '';
-            
-            for (let i = 0; i < items.length; i++) {
-                const item = items[i];
-                if (item.kind === 'file') {
-                    const entry = item.webkitGetAsEntry();
-                    if (entry) {
-                        if (entry.isDirectory) {
-                            // フォルダの場合、フォルダ名を保存
-                            folderName = entry.name;
-                            await readDirectory(entry, entry.name, files);
-                        } else {
-                            // ファイルの場合
-                            const file = item.getAsFile();
-                            files.push({ file: file, path: file.name });
-                        }
-                    }
-                }
-            }
-            
-            if (files.length > 0) {
-                if (folderName) {
-                    alert(`📁 フォルダ送信開始\n\nフォルダ名: ${folderName}\nファイル数: ${files.length}`);
-                }
-                sendMultipleFiles(targetPeerId, files);
-            }
-        }
-
-        function readDirectory(dirEntry, path, files) {
-            return new Promise((resolve) => {
-                const dirReader = dirEntry.createReader();
-                const entries = [];
-                
-                function readEntries() {
-                    dirReader.readEntries((results) => {
-                        if (results.length === 0) {
-                            processEntries();
-                        } else {
-                            entries.push(...results);
-                            readEntries();
-                        }
-                    });
-                }
-                
-                async function processEntries() {
-                    for (const entry of entries) {
-                        const fullPath = path ? `${path}/${entry.name}` : entry.name;
-                        
-                        if (entry.isFile) {
-                            await new Promise((resolveFile) => {
-                                entry.file((file) => {
-                                    files.push({ file: file, path: fullPath });
-                                    resolveFile();
-                                });
-                            });
-                        } else if (entry.isDirectory) {
-                            await readDirectory(entry, fullPath, files);
-                        }
-                    }
-                    resolve();
-                }
-                
-                readEntries();
-            });
-        }
-
-        function sendMultipleFiles(targetPeerId, files) {
-            if (files.length === 0) return;
-            
-            let currentIndex = 0;
-            
-            function sendNext() {
-                if (currentIndex >= files.length) {
-                    alert(`✅ 全ファイル送信完了！\n\n合計: ${files.length} ファイル`);
-                    return;
-                }
-                
-                const fileInfo = files[currentIndex];
-                sendFileData(targetPeerId, fileInfo.file, fileInfo.path, () => {
-                    currentIndex++;
-                    setTimeout(sendNext, 500);
-                });
-            }
-            
-            sendNext();
-        }
-
-        function disconnectPeer(targetPeerId) {
-            if (connections[targetPeerId]) {
-                connections[targetPeerId].close();
-            }
-            selectedPeers.delete(targetPeerId);
-        }
-
-        function sendFile(targetPeerId) {
-            const fileInput = document.getElementById('fileInput');
-            fileInput.onchange = (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    sendFileData(targetPeerId, file, file.name);
-                }
-                e.target.value = '';
-            };
-            fileInput.click();
-        }
-
-        function sendFileData(targetPeerId, file, filePath, callback) {
-            if (!connections[targetPeerId]) {
-                alert('接続が切れています');
-                if (callback) callback();
-                return;
-            }
-
-            const CHUNK_SIZE = 16 * 1024;
-            const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-            
-            showProgress('📤 送信中...', filePath || file.name, file.size);
-
-            const reader = new FileReader();
-            let offset = 0;
-            let chunkIndex = 0;
-
-            const fileId = Date.now().toString(36) + Math.random().toString(36).substring(2);
-            
-            currentTransfer = {
-                fileId: fileId,
-                cancelled: false
-            };
-
-            function readNextChunk() {
-                if (currentTransfer.cancelled) {
-                    hideProgress();
-                    alert('送信をキャンセルしました');
-                    if (callback) callback();
-                    return;
-                }
-
-                if (offset >= file.size) {
-                    try {
-                        connections[targetPeerId].send({
-                            type: 'file_end',
-                            fileId: fileId
-                        });
-                        hideProgress();
-                        if (!callback) {
-                            alert(`✅ 送信完了！\n\nファイル: ${filePath || file.name}`);
-                        }
-                        if (callback) callback();
-                    } catch (err) {
-                        console.error('Send end error:', err);
-                        hideProgress();
-                        if (callback) callback();
-                    }
-                    return;
-                }
-
-                const chunk = file.slice(offset, offset + CHUNK_SIZE);
-                reader.readAsArrayBuffer(chunk);
-            }
-
-            reader.onload = (e) => {
-                try {
-                    if (chunkIndex === 0) {
-                        connections[targetPeerId].send({
-                            type: 'file_start',
-                            fileId: fileId,
-                            fileName: file.name,
-                            filePath: filePath || file.name,
-                            fileType: file.type,
-                            size: file.size,
-                            totalChunks: totalChunks,
-                            from: username
-                        });
-                    }
-
-                    connections[targetPeerId].send({
-                        type: 'file_chunk',
-                        fileId: fileId,
-                        chunkIndex: chunkIndex,
-                        totalChunks: totalChunks,
-                        data: e.target.result
-                    });
-
-                    offset += CHUNK_SIZE;
-                    chunkIndex++;
-
-                    updateProgress(chunkIndex, totalChunks, file.size);
-
-                    setTimeout(readNextChunk, 10);
-                } catch (err) {
-                    console.error('Send chunk error:', err);
-                    hideProgress();
-                    alert(`送信エラー: ${err.message}`);
-                    if (callback) callback();
-                }
-            };
-
-            reader.onerror = (err) => {
-                hideProgress();
-                alert(`ファイル読み込みエラー: ${err.message}`);
-                if (callback) callback();
-            };
-
-            readNextChunk();
-        }
-
+        
         function formatBytes(bytes) {
             if (bytes === 0) return '0 B';
             const k = 1024;
@@ -1269,34 +536,19 @@
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
         }
-
+        
         function openUsernameModal() {
-            document.getElementById('usernameInput').value = username;
-            document.getElementById('usernameModal').classList.add('show');
-        }
-
-        function saveUsername() {
-            const newName = document.getElementById('usernameInput').value.trim();
-            if (newName) {
-                username = newName;
-                localStorage.setItem('p2p_username', username);
-                document.getElementById('statusText').textContent = `接続中: ${username}`;
-                document.getElementById('usernameModal').classList.remove('show');
-                
-                // 接続中の全員に名前変更を通知
-                Object.values(connections).forEach(conn => {
-                    conn.send({
-                        type: 'username_change',
-                        username: username
-                    });
-                });
+            const newName = prompt('PC名を入力してください', myName);
+            if (newName && newName.trim()) {
+                myName = newName.trim();
+                document.getElementById('myName').textContent = myName;
+                document.getElementById('statusText').textContent = `待機中 (${myIP})`;
             }
         }
-
-        document.getElementById('connectInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') connectToPeer();
-        });
-
+        
+        // 定期的にピアリストを更新
+        setInterval(updatePeerList, 2000);
+        
         init();
     </script>
 </body>
