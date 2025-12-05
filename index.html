@@ -4,7 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>P2Pファイル共有</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            if (typeof Peer === 'undefined') {
+                alert('エラー: PeerJSライブラリが読み込めませんでした');
+                console.error('PeerJS not loaded');
+            } else {
+                console.log('✅ PeerJSライブラリ読み込み成功', Peer);
+            }
+        });
+    </script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -356,7 +366,7 @@
             <div class="header">
                 <div>
                     <div class="title">📡 P2Pファイル共有</div>
-                    <div class="subtitle" id="statusText" onclick="openUsernameModal()">接続中...</div>
+                    <div class="subtitle" id="statusText" onclick="openUsernameModal()">生成中...</div>
                 </div>
                 <div class="status">
                     <div class="status-dot"></div>
@@ -486,7 +496,7 @@
 
         async function updateApp(version) {
             try {
-                const updateUrl = 'https://Teru0822.github.io/p2p-file-share-updates/index.html';
+                const updateUrl = 'https://teru0822.github.io/p2p-file-share-updates/index.html';
                 
                 console.log('Starting update to version:', version);
                 console.log('Download URL:', updateUrl);
@@ -556,17 +566,16 @@
             
             const shortId = Math.floor(100000 + Math.random() * 900000).toString();
             console.log("🚀 PeerJS初期化開始... ID:", shortId);
-            document.getElementById('myPeerId').textContent = '接続中...';
+            document.getElementById('myPeerId').textContent = '生成中...';
             
+            // デフォルトのPeerJSサーバーを使用（最も安定）
             peer = new Peer(shortId, {
-                host: '0.peerjs.com',
-                port: 443,
-                path: '/',
-                secure: true,
+                debug: 2,  // デバッグレベル最大
                 config: {
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' }
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'stun:stun2.l.google.com:19302' }
                     ]
                 }
             });
@@ -582,6 +591,15 @@
                 setupConnection(conn);
             });
 
+            
+            peer.on('disconnected', () => {
+                console.warn("⚠️ PeerJSサーバーから切断されました");
+                document.getElementById('myPeerId').textContent = '切断';
+            });
+            
+            peer.on('close', () => {
+                console.warn("⚠️ PeerJS接続が閉じられました");
+            });
             peer.on('error', (err) => {
                 console.error('Peer error:', err);
                 alert('接続エラー: ' + err.message);
@@ -704,7 +722,7 @@
                 // 接続確立直後に一度表示を更新（仮表示）
                 if (!connectedPeers[conn.peer]) {
                     connectedPeers[conn.peer] = {
-                        username: '接続中...',
+                        username: '生成中...',
                         peerId: conn.peer
                     };
                     updatePeerList();
@@ -1283,4 +1301,3 @@
     </script>
 </body>
 </html>
-
