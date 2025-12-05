@@ -93,7 +93,7 @@
             border-radius: 10px;
             font-size: 16px;
             font-family: monospace;
-            text-transform: uppercase;
+            
         }
         
         .peer-item {
@@ -488,6 +488,9 @@
             try {
                 const updateUrl = 'https://teru0822.github.io/p2p-file-share-updates/index.html';
                 
+                console.log('Starting update to version:', version);
+                console.log('Download URL:', updateUrl);
+                
                 // ローディング表示
                 const loading = document.createElement('div');
                 loading.style.cssText = `
@@ -507,26 +510,37 @@
                         <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">📥</div>
                         <div style="font-size: 18px; font-weight: bold; color: #333;">アップデート中...</div>
                         <div style="font-size: 14px; color: #666; margin-top: 10px;">しばらくお待ちください</div>
+                        <div id="updateLog" style="font-size: 12px; color: #999; margin-top: 10px; max-width: 400px; word-break: break-all;"></div>
                     </div>
                 `;
                 document.body.appendChild(loading);
                 
+                const updateLog = document.getElementById('updateLog');
+                updateLog.textContent = 'ダウンロード開始...';
+                
                 // アップデートをダウンロード
                 const result = await ipcRenderer.invoke('download-update', updateUrl, version);
+                
+                console.log('Update result:', result);
+                updateLog.textContent = 'ダウンロード完了！';
                 
                 if (result.success) {
                     loading.innerHTML = `
                         <div style="background: white; padding: 40px; border-radius: 20px; text-align: center;">
                             <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">✅</div>
                             <div style="font-size: 18px; font-weight: bold; color: #333;">アップデート完了！</div>
-                            <div style="font-size: 14px; color: #666; margin-top: 10px;">アプリを再起動します...</div>
+                            <div style="font-size: 14px; color: #666; margin-top: 10px;">バージョン ${version}</div>
+                            <div style="font-size: 14px; color: #666; margin-top: 5px;">アプリを再起動します...</div>
                         </div>
                     `;
+                    
+                    console.log('Restarting app in 2 seconds...');
                     
                     setTimeout(async () => {
                         await ipcRenderer.invoke('restart-app');
                     }, 2000);
                 } else {
+                    console.error('Update failed:', result);
                     alert('アップデートに失敗しました');
                     document.body.removeChild(loading);
                 }
@@ -540,7 +554,7 @@
             const saved = localStorage.getItem('p2p_username');
             if (saved) username = saved;
             
-            const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
+            const shortId = Math.floor(100000 + Math.random() * 900000).toString();
             
             peer = new Peer(shortId, {
                 config: {
