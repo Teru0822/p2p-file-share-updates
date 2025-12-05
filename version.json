@@ -1,6 +1,7 @@
 {
-  "version": "1.0.2",
+  "version": "1.0.3",
   "updateUrl": "https://teru0822.github.io/p2p-file-share-updates/index.html",
-  "changelog": "・初回リリース\n・P2Pファイル共有機能\n・フレンド機能\n・グループ機能\n・フォルダ送信対応"
+  "changelog": "接続コードを数字のみに変更"
 }
+
 
