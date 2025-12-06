@@ -317,6 +317,27 @@
         .modal-btn-secondary:hover {
             background: #d1d5db;
         }
+        
+        .update-banner {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #22c55e;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(34, 197, 94, 0.3);
+            cursor: pointer;
+            z-index: 4000;
+            animation: slideIn 0.3s;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(400px); }
+            to { transform: translateX(0); }
+        }
+        .update-banner:hover {
+            background: #16a34a;
+        }
     </style>
 </head>
 <body>
@@ -391,8 +412,10 @@
         const os = require('os');
         const dgram = require('dgram');
         const net = require('net');
-        const fs = require('fs');
-        const path = require('path');
+        const https = require('https');
+        
+        // バージョン情報
+        const CURRENT_VERSION = '2.0.0';
         
         // 設定
         const BROADCAST_PORT = 45678;
@@ -431,6 +454,49 @@
             document.getElementById('nameInput').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') saveName();
             });
+            
+            // アップデートチェック（起動5秒後）
+            setTimeout(checkForUpdates, 5000);
+        }
+        
+        function checkForUpdates() {
+            const versionUrl = 'https://Teru0822.github.io/p2p-file-share-updates/version.json';
+            
+            https.get(versionUrl, (res) => {
+                let data = '';
+                res.on('data', (chunk) => { data += chunk; });
+                res.on('end', () => {
+                    try {
+                        const remoteVersion = JSON.parse(data);
+                        if (remoteVersion.version !== CURRENT_VERSION) {
+                            showUpdateBanner(remoteVersion);
+                        }
+                    } catch (err) {}
+                });
+            }).on('error', () => {});
+        }
+        
+        function showUpdateBanner(versionInfo) {
+            const banner = document.createElement('div');
+            banner.className = 'update-banner';
+            banner.innerHTML = `🎉 新しいバージョン ${versionInfo.version} が利用可能です！<br>クリックしてアップデート`;
+            banner.onclick = () => applyUpdate(versionInfo);
+            document.body.appendChild(banner);
+        }
+        
+        async function applyUpdate(versionInfo) {
+            const updateUrl = 'https://Teru0822.github.io/p2p-file-share-updates/index.html';
+            
+            try {
+                const result = await ipcRenderer.invoke('download-update', updateUrl, versionInfo.version);
+                if (result.success) {
+                    if (confirm('アップデートが完了しました。\nアプリを再起動しますか？')) {
+                        ipcRenderer.invoke('restart-app');
+                    }
+                }
+            } catch (err) {
+                alert('アップデートエラー: ' + err.message);
+            }
         }
         
         function setupBroadcast() {
@@ -496,17 +562,17 @@
         }
         
         function startBroadcasting() {
-            const message = JSON.stringify({
-                type: 'announce',
-                name: myName,
-                ip: myIP
-            });
-            
-            setInterval(() => {
+            function broadcast() {
+                const message = JSON.stringify({
+                    type: 'announce',
+                    name: myName,
+                    ip: myIP
+                });
                 broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255');
-            }, BROADCAST_INTERVAL);
+            }
             
-            broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255');
+            setInterval(broadcast, BROADCAST_INTERVAL);
+            broadcast();
         }
         
         function addPeer(name, ip) {
@@ -806,6 +872,14 @@
                 document.getElementById('myName').textContent = myName;
                 document.getElementById('statusText').textContent = `待機中 (${myIP})`;
                 closeNameModal();
+                
+                // PC名を変更したら即座にブロードキャストして他のPCに通知
+                const message = JSON.stringify({
+                    type: 'announce',
+                    name: myName,
+                    ip: myIP
+                });
+                broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255');
             } else {
                 alert('PC名を入力してください');
             }
