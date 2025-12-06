@@ -74,9 +74,7 @@
             font-weight: bold;
             font-size: 14px;
         }
-        .edit-btn:hover {
-            background: #f0f0f0;
-        }
+        .edit-btn:hover { background: #f0f0f0; }
         
         .peer-item {
             display: flex;
@@ -159,13 +157,8 @@
             gap: 15px;
             z-index: 999;
         }
-        .send-bar.show {
-            display: flex;
-        }
-        .send-bar-info {
-            font-weight: bold;
-            color: #333;
-        }
+        .send-bar.show { display: flex; }
+        .send-bar-info { font-weight: bold; color: #333; }
         .btn-primary {
             background: #667eea;
             color: white;
@@ -175,9 +168,7 @@
             font-weight: bold;
             cursor: pointer;
         }
-        .btn-primary:hover {
-            background: #5568d3;
-        }
+        .btn-primary:hover { background: #5568d3; }
         .btn-secondary {
             background: #e5e7eb;
             color: #333;
@@ -187,9 +178,7 @@
             font-weight: bold;
             cursor: pointer;
         }
-        .btn-secondary:hover {
-            background: #d1d5db;
-        }
+        .btn-secondary:hover { background: #d1d5db; }
         
         .empty-state {
             text-align: center;
@@ -307,16 +296,12 @@
             background: #667eea;
             color: white;
         }
-        .modal-btn-primary:hover {
-            background: #5568d3;
-        }
+        .modal-btn-primary:hover { background: #5568d3; }
         .modal-btn-secondary {
             background: #e5e7eb;
             color: #333;
         }
-        .modal-btn-secondary:hover {
-            background: #d1d5db;
-        }
+        .modal-btn-secondary:hover { background: #d1d5db; }
         
         .update-banner {
             position: fixed;
@@ -335,9 +320,7 @@
             from { transform: translateX(400px); }
             to { transform: translateX(0); }
         }
-        .update-banner:hover {
-            background: #16a34a;
-        }
+        .update-banner:hover { background: #16a34a; }
         .update-banner-close {
             position: absolute;
             top: 5px;
@@ -353,16 +336,7 @@
             line-height: 25px;
             text-align: center;
         }
-        .update-banner-close:hover {
-            opacity: 0.7;
-        }
-        @keyframes slideIn {
-            from { transform: translateX(400px); }
-            to { transform: translateX(0); }
-        }
-        .update-banner:hover {
-            background: #16a34a;
-        }
+        .update-banner-close:hover { opacity: 0.7; }
     </style>
 </head>
 <body>
@@ -439,13 +413,31 @@
         const net = require('net');
         const https = require('https');
         
-        // バージョン情報
         const CURRENT_VERSION = '2.0.0';
-        
-        // 設定
         const BROADCAST_PORT = 45678;
         const TRANSFER_PORT = 45679;
-        const BROADCAST_INTERVAL = 5000;
+        const BROADCAST_INTERVAL = 3000; // 3秒ごと
+        
+        let myName = localStorage.getItem('p2p_pc_name') || os.hostname() || 'Unknown PC';
+        let myIP = getLocalIP();
+        let discoveredPeers = new Map();
+        let selectedPeers = new Set();
+        let broadcastSocket;
+        let transferServer;
+        let currentTransfer = null;
+        
+        function getLocalIP() {
+            const interfaces = os.networkInterfaces();
+            for (const name of Object.keys(interfaces)) {
+                for (const iface of interfaces[name]) {
+                    if (iface.family === 'IPv4' && !iface.internal) {
+                        return iface.address;
+                    }
+                }
+            }
+            return '127.0.0.1';
+        }
+        
         function init() {
             document.getElementById('myName').textContent = myName;
             document.getElementById('statusText').textContent = `待機中 (${myIP})`;
@@ -454,72 +446,25 @@
             setupTransferServer();
             startBroadcasting();
             
-            // Enterキーで保存
             document.getElementById('nameInput').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') saveName();
             });
             
-            // 現在のバージョンをローカルストレージに保存
             const savedVersion = localStorage.getItem('app_version');
             if (savedVersion !== CURRENT_VERSION) {
                 localStorage.setItem('app_version', CURRENT_VERSION);
             }
             
-            // アップデートチェック（起動5秒後）
             setTimeout(checkForUpdates, 5000);
         }
         
-        function checkForUpdates() {
-            const versionUrl = 'https://Teru0822.github.io/p2p-file-share-updates/version.json';
-            
-            https.get(versionUrl, (res) => {
-                let data = '';
-                res.on('data', (chunk) => { data += chunk; });
-                res.on('end', () => {
-                    try {
-                        const remoteVersion = JSON.parse(data);
-                        const savedVersion = localStorage.getItem('app_version') || CURRENT_VERSION;
-                        const ignoredVersion = localStorage.getItem('ignored_update_version');
-                        
-                        // 無視されたバージョンはスキップ
-                        if (remoteVersion.version === ignoredVersion) {
-                            return;
-                        }
-                        
-                        // 保存されているバージョンとリモートバージョンを比較
-                        if (remoteVersion.version !== savedVersion && remoteVersion.version !== CURRENT_VERSION) {
-                            showUpdateBanner(remoteVersion);
-                        }
-                    } catch (err) {}
-                });
-            }).on('error', () => {});
-        }
-        
-        function showUpdateBanner(versionInfo) {
-            // 既にバナーがある場合は表示しない
-            if (document.querySelector('.update-banner')) return;
-            
-            const banner = document.createElement('div');
-            banner.className = 'update-banner';
-            banner.innerHTML = `
-                🎉 新しいバージョン ${versionInfo.version} が利用可能です！<br>クリックしてアップデート
-                <button class="update-banner-close" onclick="event.stopPropagation(); ignoreUpdate('${versionInfo.version}'); this.parentElement.remove();">×</button>
-            `;
-            banner.onclick = () => applyUpdate(versionInfo);
-            document.body.appendChild(banner);
-        }
-        
-        function ignoreUpdate(version) {
-            localStorage.setItem('ignored_update_version', version);
-        }
         function setupBroadcast() {
-            broadcastSocket = dgram.createSocket('udp4');
+            broadcastSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
             
             broadcastSocket.on('message', (msg, rinfo) => {
                 try {
                     const data = JSON.parse(msg.toString());
-                    if (rinfo.address === myIP) return;
-                    if (data.type === 'announce') {
+                    if (rinfo.address !== myIP && data.type === 'announce') {
                         addPeer(data.name, rinfo.address);
                     }
                 } catch (err) {}
@@ -541,13 +486,11 @@
                     
                     if (!fileInfo && receivedData.length >= 4) {
                         const headerSize = receivedData.readUInt32BE(0);
-                        
                         if (receivedData.length >= 4 + headerSize) {
                             const headerJSON = receivedData.slice(4, 4 + headerSize).toString();
                             fileInfo = JSON.parse(headerJSON);
                             expectedSize = fileInfo.size;
                             receivedData = receivedData.slice(4 + headerSize);
-                            
                             showProgress('📥 受信中...', fileInfo.name, fileInfo.size);
                         }
                     }
@@ -561,11 +504,8 @@
                     if (fileInfo && receivedData.length === expectedSize) {
                         const result = await ipcRenderer.invoke('save-file', fileInfo.name, Array.from(receivedData));
                         hideProgress();
-                        
                         if (result.success) {
                             alert(`✅ ファイル受信完了！\n\nファイル: ${fileInfo.name}\n保存先: ${result.filePath}`);
-                        } else {
-                            alert(`❌ 保存エラー: ${result.error}`);
                         }
                     }
                 });
@@ -581,9 +521,8 @@
                     name: myName,
                     ip: myIP
                 });
-                broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255');
+                broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255', () => {});
             }
-            
             setInterval(broadcast, BROADCAST_INTERVAL);
             broadcast();
         }
@@ -599,7 +538,7 @@
         
         function updatePeerList() {
             const now = Date.now();
-            const TIMEOUT = 15000;
+            const TIMEOUT = 10000;
             
             for (const [ip, peer] of discoveredPeers) {
                 if (now - peer.lastSeen > TIMEOUT) {
@@ -639,7 +578,6 @@
                     </div>
                 `).join('');
             }
-            
             updateSendBar();
         }
         
@@ -655,7 +593,6 @@
         function updateSendBar() {
             const sendBar = document.getElementById('sendBar');
             const selectedCount = document.getElementById('selectedCount');
-            
             if (selectedPeers.size > 0) {
                 sendBar.classList.add('show');
                 selectedCount.textContent = `${selectedPeers.size}人`;
@@ -670,17 +607,12 @@
         }
         
         function sendToSelected() {
-            if (selectedPeers.size === 0) {
-                alert('送信先を選択してください');
-                return;
-            }
-            
+            if (selectedPeers.size === 0) return alert('送信先を選択してください');
             const fileInput = document.getElementById('fileInput');
             fileInput.onchange = (e) => {
                 const files = Array.from(e.target.files);
                 if (files.length > 0) {
-                    const targets = Array.from(selectedPeers);
-                    sendFilesToMultiple(targets, files);
+                    sendFilesToMultiple(Array.from(selectedPeers), files);
                 }
                 e.target.value = '';
             };
@@ -700,59 +632,40 @@
         }
         
         function sendFilesToMultiple(targets, files) {
-            let targetIndex = 0;
-            let fileIndex = 0;
-            
+            let targetIndex = 0, fileIndex = 0;
             function sendNext() {
                 if (targetIndex >= targets.length) {
-                    alert(`✅ 全送信完了！\n\n送信先: ${targets.length}台\nファイル数: ${files.length}`);
-                    return;
+                    return alert(`✅ 全送信完了！\n\n送信先: ${targets.length}台\nファイル数: ${files.length}`);
                 }
-                
                 if (fileIndex >= files.length) {
                     targetIndex++;
                     fileIndex = 0;
-                    setTimeout(sendNext, 500);
-                    return;
+                    return setTimeout(sendNext, 500);
                 }
-                
-                const target = targets[targetIndex];
-                const file = files[fileIndex];
-                
-                sendFileData(target, file, () => {
+                sendFileData(targets[targetIndex], files[fileIndex], () => {
                     fileIndex++;
                     setTimeout(sendNext, 500);
                 });
             }
-            
             sendNext();
         }
         
         function sendFileData(targetIP, file, callback) {
             const reader = new FileReader();
-            
             reader.onload = (e) => {
                 const fileData = Buffer.from(e.target.result);
-                const fileInfo = {
-                    name: file.name,
-                    type: file.type,
-                    size: file.size
-                };
-                
+                const fileInfo = { name: file.name, type: file.type, size: file.size };
                 const client = net.createConnection({ port: TRANSFER_PORT, host: targetIP }, () => {
                     showProgress('📤 送信中...', file.name, file.size);
-                    
                     const headerJSON = JSON.stringify(fileInfo);
                     const headerBuffer = Buffer.from(headerJSON);
                     const headerSize = Buffer.alloc(4);
                     headerSize.writeUInt32BE(headerBuffer.length, 0);
-                    
                     client.write(headerSize);
                     client.write(headerBuffer);
                     
                     const CHUNK_SIZE = 64 * 1024;
                     let offset = 0;
-                    
                     function sendChunk() {
                         if (currentTransfer && currentTransfer.cancelled) {
                             client.end();
@@ -760,17 +673,13 @@
                             if (callback) callback();
                             return;
                         }
-                        
                         if (offset >= fileData.length) {
                             client.end();
                             hideProgress();
-                            if (!callback) {
-                                alert(`✅ 送信完了！\n\nファイル: ${file.name}`);
-                            }
+                            if (!callback) alert(`✅ 送信完了！\n\nファイル: ${file.name}`);
                             if (callback) callback();
                             return;
                         }
-                        
                         const chunk = fileData.slice(offset, offset + CHUNK_SIZE);
                         client.write(chunk, () => {
                             offset += chunk.length;
@@ -778,57 +687,42 @@
                             setTimeout(sendChunk, 10);
                         });
                     }
-                    
                     currentTransfer = { cancelled: false };
                     sendChunk();
                 });
-                
-                client.on('error', (err) => {
+                client.on('error', () => {
                     hideProgress();
-                    alert('送信エラー: ' + err.message);
                     if (callback) callback();
                 });
             };
-            
             reader.readAsArrayBuffer(file);
         }
         
-        // ドラッグ&ドロップ処理
         function handleDragOver(event, ip) {
             event.preventDefault();
             event.stopPropagation();
-            const elem = document.getElementById('peer-' + ip.replace(/\./g, '-'));
-            if (elem) elem.classList.add('drag-over');
+            document.getElementById('peer-' + ip.replace(/\./g, '-')).classList.add('drag-over');
         }
         
         function handleDragLeave(event, ip) {
             event.preventDefault();
-            event.stopPropagation();
-            const elem = document.getElementById('peer-' + ip.replace(/\./g, '-'));
-            if (elem) elem.classList.remove('drag-over');
+            document.getElementById('peer-' + ip.replace(/\./g, '-')).classList.remove('drag-over');
         }
         
         function handleDrop(event, ip) {
             event.preventDefault();
             event.stopPropagation();
-            const elem = document.getElementById('peer-' + ip.replace(/\./g, '-'));
-            if (elem) elem.classList.remove('drag-over');
-            
+            document.getElementById('peer-' + ip.replace(/\./g, '-')).classList.remove('drag-over');
             const items = event.dataTransfer.items;
             const files = [];
-            
             if (items) {
                 for (let i = 0; i < items.length; i++) {
                     if (items[i].kind === 'file') {
-                        const file = items[i].getAsFile();
-                        files.push(file);
+                        files.push(items[i].getAsFile());
                     }
                 }
             }
-            
-            if (files.length > 0) {
-                sendFilesToMultiple([ip], files);
-            }
+            if (files.length > 0) sendFilesToMultiple([ip], files);
         }
         
         function showProgress(title, fileName, fileSize) {
@@ -853,9 +747,7 @@
         }
         
         function cancelTransfer() {
-            if (currentTransfer) {
-                currentTransfer.cancelled = true;
-            }
+            if (currentTransfer) currentTransfer.cancelled = true;
             hideProgress();
         }
         
@@ -885,17 +777,65 @@
                 document.getElementById('myName').textContent = myName;
                 document.getElementById('statusText').textContent = `待機中 (${myIP})`;
                 closeNameModal();
-                
-                // PC名を変更したら即座にブロードキャストして他のPCに通知
-                const message = JSON.stringify({
-                    type: 'announce',
-                    name: myName,
-                    ip: myIP
-                });
+                const message = JSON.stringify({ type: 'announce', name: myName, ip: myIP });
                 broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255');
             } else {
                 alert('PC名を入力してください');
             }
+        }
+        
+        function checkForUpdates() {
+            const versionUrl = 'https://Teru0822.github.io/p2p-file-share-updates/version.json';
+            https.get(versionUrl, (res) => {
+                let data = '';
+                res.on('data', (chunk) => { data += chunk; });
+                res.on('end', () => {
+                    try {
+                        const remoteVersion = JSON.parse(data);
+                        const savedVersion = localStorage.getItem('app_version') || CURRENT_VERSION;
+                        const ignoredVersion = localStorage.getItem('ignored_update_version');
+                        if (remoteVersion.version === ignoredVersion) return;
+                        if (remoteVersion.version !== savedVersion && remoteVersion.version !== CURRENT_VERSION) {
+                            showUpdateBanner(remoteVersion);
+                        }
+                    } catch (err) {}
+                });
+            }).on('error', () => {});
+        }
+        
+        function showUpdateBanner(versionInfo) {
+            if (document.querySelector('.update-banner')) return;
+            const banner = document.createElement('div');
+            banner.className = 'update-banner';
+            banner.innerHTML = `
+                🎉 新しいバージョン ${versionInfo.version} が利用可能です！<br>クリックしてアップデート
+                <button class="update-banner-close" onclick="event.stopPropagation(); ignoreUpdate('${versionInfo.version}'); this.parentElement.remove();">×</button>
+            `;
+            banner.onclick = () => applyUpdate(versionInfo);
+            document.body.appendChild(banner);
+        }
+        
+        async function applyUpdate(versionInfo) {
+            const updateUrl = 'https://Teru0822.github.io/p2p-file-share-updates/index.html';
+            const banner = document.querySelector('.update-banner');
+            if (banner) banner.remove();
+            showProgress('⬇️ アップデート中...', 'index.html をダウンロードしています', 0);
+            try {
+                const result = await ipcRenderer.invoke('download-update', updateUrl, versionInfo.version);
+                hideProgress();
+                if (result.success) {
+                    localStorage.setItem('app_version', versionInfo.version);
+                    if (confirm('✅ アップデートが完了しました。\n\nアプリを再起動しますか？')) {
+                        await ipcRenderer.invoke('restart-app');
+                    }
+                }
+            } catch (err) {
+                hideProgress();
+            }
+        }
+        
+        function ignoreUpdate(version) {
+            localStorage.setItem('ignored_update_version', version);
         }
         
         setInterval(updatePeerList, 2000);
