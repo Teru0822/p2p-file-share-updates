@@ -416,7 +416,7 @@
         const CURRENT_VERSION = '2.0.0';
         const BROADCAST_PORT = 45678;
         const TRANSFER_PORT = 45679;
-        const BROADCAST_INTERVAL = 3000; // 3秒ごと
+        const BROADCAST_INTERVAL = 3000;
         
         let myName = localStorage.getItem('p2p_pc_name') || os.hostname() || 'Unknown PC';
         let myIP = getLocalIP();
@@ -442,16 +442,6 @@
             document.getElementById('myName').textContent = myName;
             document.getElementById('statusText').textContent = `待機中 (${myIP})`;
             
-            // デバッグ情報を画面に表示
-            console.log('=== 初期化 ===');
-            console.log('PC名:', myName);
-            console.log('IP:', myIP);
-            
-            if (myIP === '127.0.0.1') {
-                document.getElementById('statusText').textContent = '⚠️ ネットワーク接続を確認してください';
-                document.getElementById('statusText').style.color = '#ef4444';
-            }
-            
             setupBroadcast();
             setupTransferServer();
             startBroadcasting();
@@ -466,26 +456,12 @@
             }
             
             setTimeout(checkForUpdates, 5000);
-            
-            // 10秒後に状態をチェック
-            setTimeout(() => {
-                console.log('=== 10秒後の状態 ===');
-                console.log('発見したピア数:', discoveredPeers.size);
-                if (discoveredPeers.size === 0) {
-                    console.log('⚠️ デバイスが見つかりません');
-                    console.log('確認事項:');
-                    console.log('1. 同じWi-Fi/LANに接続していますか？');
-                    console.log('2. ファイアウォールは許可していますか？');
-                    console.log('3. 他のPCでもアプリを起動していますか？');
-                }
-            }, 10000);
         }
+        
         function setupBroadcast() {
             broadcastSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
             
-            broadcastSocket.on('error', (err) => {
-                // エラーが起きてもアプリは続行
-            });
+            broadcastSocket.on('error', (err) => {});
             
             broadcastSocket.on('message', (msg, rinfo) => {
                 try {
@@ -498,51 +474,11 @@
             
             broadcastSocket.on('listening', () => {
                 broadcastSocket.setBroadcast(true);
-                // すぐにブロードキャスト開始
-                setTimeout(() => {
-                    const message = JSON.stringify({
-                        type: 'announce',
-                        name: myName,
-                        ip: myIP
-                    });
-                    broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255');
-                }, 100);
             });
             
-            // ポート0でバインド（自動的に空いているポートを使用）
-            try {
-                broadcastSocket.bind(BROADCAST_PORT);
-            } catch (err) {
-                // バインド失敗してもブロードキャストは可能
-                broadcastSocket.bind(0);
-            }
+            broadcastSocket.bind(BROADCAST_PORT);
         }
         
-        function startBroadcasting() {
-            function broadcast() {
-                const message = JSON.stringify({
-                    type: 'announce',
-                    name: myName,
-                    ip: myIP
-                });
-                
-                try {
-                    broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255', (err) => {
-                        if (!err) {
-                            // 送信成功
-                        }
-                    });
-                } catch (err) {
-                    // 送信エラーは無視
-                }
-            }
-            
-            // 最初のブロードキャスト
-            setTimeout(broadcast, 500);
-            
-            // 定期的にブロードキャスト
-            setInterval(broadcast, BROADCAST_INTERVAL);
-        }
         function setupTransferServer() {
             transferServer = net.createServer((socket) => {
                 let receivedData = Buffer.alloc(0);
@@ -589,10 +525,14 @@
                     name: myName,
                     ip: myIP
                 });
-                broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255', () => {});
+                
+                try {
+                    broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255');
+                } catch (err) {}
             }
+            
+            setTimeout(broadcast, 100);
             setInterval(broadcast, BROADCAST_INTERVAL);
-            broadcast();
         }
         
         function addPeer(name, ip) {
@@ -843,7 +783,6 @@
                 myName = newName;
                 localStorage.setItem('p2p_pc_name', myName);
                 document.getElementById('myName').textContent = myName;
-                document.getElementById('statusText').textContent = `待機中 (${myIP})`;
                 closeNameModal();
                 const message = JSON.stringify({ type: 'announce', name: myName, ip: myIP });
                 broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255');
