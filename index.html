@@ -450,14 +450,9 @@
                 if (e.key === 'Enter') saveName();
             });
             
-            const savedVersion = localStorage.getItem('app_version');
-            if (savedVersion !== CURRENT_VERSION) {
-                localStorage.setItem('app_version', CURRENT_VERSION);
-            }
-            
+            // アップデートチェック（起動5秒後）
             setTimeout(checkForUpdates, 5000);
         }
-        
         function setupBroadcast() {
             broadcastSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
             
@@ -799,13 +794,35 @@
                 res.on('end', () => {
                     try {
                         const remoteVersion = JSON.parse(data);
-                        const savedVersion = localStorage.getItem('app_version') || CURRENT_VERSION;
+                        
+                        // 無視リスト確認
                         const ignoredVersion = localStorage.getItem('ignored_update_version');
                         if (remoteVersion.version === ignoredVersion) return;
-                        if (remoteVersion.version !== savedVersion && remoteVersion.version !== CURRENT_VERSION) {
+                        
+                        // 最後にチェックしたバージョンを取得
+                        const lastCheckedVersion = localStorage.getItem('last_checked_version');
+                        
+                        // 現在のバージョン（このファイルのバージョン）
+                        const currentVersion = CURRENT_VERSION;
+                        
+                        // デバッグ用（削除しても可）
+                        console.log('バージョンチェック:');
+                        console.log('  リモート:', remoteVersion.version);
+                        console.log('  現在:', currentVersion);
+                        console.log('  最後にチェック:', lastCheckedVersion);
+                        
+                        // 判定：リモートバージョンが現在のバージョンより新しい場合のみ通知
+                        if (remoteVersion.version !== currentVersion) {
                             showUpdateBanner(remoteVersion);
+                        } else {
+                            // 同じバージョンなら、last_checked_versionを更新
+                            if (lastCheckedVersion !== currentVersion) {
+                                localStorage.setItem('last_checked_version', currentVersion);
+                            }
                         }
-                    } catch (err) {}
+                    } catch (err) {
+                        console.error('アップデートチェックエラー:', err);
+                    }
                 });
             }).on('error', () => {});
         }
@@ -826,25 +843,39 @@
             const updateUrl = 'https://Teru0822.github.io/p2p-file-share-updates/index.html';
             const banner = document.querySelector('.update-banner');
             if (banner) banner.remove();
-            showProgress('⬇️ アップデート中...', 'index.html をダウンロードしています', 0);
+            
+            showProgress('⬇️ アップデート中...', 'index.htmlをダウンロードしています', 0);
+            
             try {
                 const result = await ipcRenderer.invoke('download-update', updateUrl, versionInfo.version);
                 hideProgress();
+                
                 if (result.success) {
-                    localStorage.setItem('app_version', versionInfo.version);
-                    if (confirm('✅ アップデートが完了しました。\n\nアプリを再起動しますか？')) {
+                    // アップデート成功したらバージョンを記録
+                    localStorage.setItem('last_checked_version', versionInfo.version);
+                    
+                    // 自動的に再起動（確認なし）
+                    const restartMsg = document.createElement('div');
+                    restartMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:40px;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.5);z-index:9999;text-align:center;';
+                    restartMsg.innerHTML = '<div style="font-size:24px;font-weight:bold;margin-bottom:10px;">✅ アップデート完了</div><div style="color:#666;">3秒後に自動で再起動します...</div>';
+                    document.body.appendChild(restartMsg);
+                    
+                    // 3秒後に再起動
+                    setTimeout(async () => {
                         await ipcRenderer.invoke('restart-app');
-                    }
+                    }, 3000);
+                } else {
+                    alert('❌ アップデートに失敗しました');
                 }
             } catch (err) {
                 hideProgress();
+                alert('❌ アップデートエラー: ' + err.message);
             }
         }
         
         function ignoreUpdate(version) {
             localStorage.setItem('ignored_update_version', version);
         }
-        
         setInterval(updatePeerList, 2000);
         init();
     </script>
