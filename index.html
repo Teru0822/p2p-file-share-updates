@@ -324,12 +324,37 @@
             right: 20px;
             background: #22c55e;
             color: white;
-            padding: 15px 20px;
+            padding: 15px 50px 15px 20px;
             border-radius: 10px;
             box-shadow: 0 10px 30px rgba(34, 197, 94, 0.3);
             cursor: pointer;
             z-index: 4000;
             animation: slideIn 0.3s;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(400px); }
+            to { transform: translateX(0); }
+        }
+        .update-banner:hover {
+            background: #16a34a;
+        }
+        .update-banner-close {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0;
+            width: 25px;
+            height: 25px;
+            line-height: 25px;
+            text-align: center;
+        }
+        .update-banner-close:hover {
+            opacity: 0.7;
         }
         @keyframes slideIn {
             from { transform: translateX(400px); }
@@ -421,27 +446,6 @@
         const BROADCAST_PORT = 45678;
         const TRANSFER_PORT = 45679;
         const BROADCAST_INTERVAL = 5000;
-        
-        let myName = localStorage.getItem('p2p_pc_name') || os.hostname() || 'Unknown PC';
-        let myIP = getLocalIP();
-        let discoveredPeers = new Map();
-        let selectedPeers = new Set();
-        let broadcastSocket;
-        let transferServer;
-        let currentTransfer = null;
-        
-        function getLocalIP() {
-            const interfaces = os.networkInterfaces();
-            for (const name of Object.keys(interfaces)) {
-                for (const iface of interfaces[name]) {
-                    if (iface.family === 'IPv4' && !iface.internal) {
-                        return iface.address;
-                    }
-                }
-            }
-            return '127.0.0.1';
-        }
-        
         function init() {
             document.getElementById('myName').textContent = myName;
             document.getElementById('statusText').textContent = `待機中 (${myIP})`;
@@ -454,6 +458,12 @@
             document.getElementById('nameInput').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') saveName();
             });
+            
+            // 現在のバージョンをローカルストレージに保存
+            const savedVersion = localStorage.getItem('app_version');
+            if (savedVersion !== CURRENT_VERSION) {
+                localStorage.setItem('app_version', CURRENT_VERSION);
+            }
             
             // アップデートチェック（起動5秒後）
             setTimeout(checkForUpdates, 5000);
@@ -468,7 +478,16 @@
                 res.on('end', () => {
                     try {
                         const remoteVersion = JSON.parse(data);
-                        if (remoteVersion.version !== CURRENT_VERSION) {
+                        const savedVersion = localStorage.getItem('app_version') || CURRENT_VERSION;
+                        const ignoredVersion = localStorage.getItem('ignored_update_version');
+                        
+                        // 無視されたバージョンはスキップ
+                        if (remoteVersion.version === ignoredVersion) {
+                            return;
+                        }
+                        
+                        // 保存されているバージョンとリモートバージョンを比較
+                        if (remoteVersion.version !== savedVersion && remoteVersion.version !== CURRENT_VERSION) {
                             showUpdateBanner(remoteVersion);
                         }
                     } catch (err) {}
@@ -477,28 +496,22 @@
         }
         
         function showUpdateBanner(versionInfo) {
+            // 既にバナーがある場合は表示しない
+            if (document.querySelector('.update-banner')) return;
+            
             const banner = document.createElement('div');
             banner.className = 'update-banner';
-            banner.innerHTML = `🎉 新しいバージョン ${versionInfo.version} が利用可能です！<br>クリックしてアップデート`;
+            banner.innerHTML = `
+                🎉 新しいバージョン ${versionInfo.version} が利用可能です！<br>クリックしてアップデート
+                <button class="update-banner-close" onclick="event.stopPropagation(); ignoreUpdate('${versionInfo.version}'); this.parentElement.remove();">×</button>
+            `;
             banner.onclick = () => applyUpdate(versionInfo);
             document.body.appendChild(banner);
         }
         
-        async function applyUpdate(versionInfo) {
-            const updateUrl = 'https://Teru0822.github.io/p2p-file-share-updates/index.html';
-            
-            try {
-                const result = await ipcRenderer.invoke('download-update', updateUrl, versionInfo.version);
-                if (result.success) {
-                    if (confirm('アップデートが完了しました。\nアプリを再起動しますか？')) {
-                        ipcRenderer.invoke('restart-app');
-                    }
-                }
-            } catch (err) {
-                alert('アップデートエラー: ' + err.message);
-            }
+        function ignoreUpdate(version) {
+            localStorage.setItem('ignored_update_version', version);
         }
-        
         function setupBroadcast() {
             broadcastSocket = dgram.createSocket('udp4');
             
