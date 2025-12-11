@@ -607,8 +607,8 @@
             // アップデートチェック（起動5秒後）
             setTimeout(checkForUpdates, 5000);
             
-            // 定期的なアップデートチェック（6時間ごと）
-            const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000; // 6時間（ミリ秒）
+
+            const UPDATE_CHECK_INTERVAL = 10000; // 10s
             setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
         // バージョン情報デバッグ表示（開発者ツール用）
         console.log('='.repeat(50));
@@ -1203,3 +1203,4 @@
     </div>
 </body>
 </html>
+
