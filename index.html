@@ -553,14 +553,15 @@
         
         // バージョン情報（このファイルに埋め込み）
         const VERSION_INFO = {
-            version: '2.1.0',
+            version: '2.1.1',
             changelog: [
                 '✅ IPMessenger風の自動デバイス検出',
                 '✅ PC名の自由編集＆即時反映',
                 '✅ チェックボックスで複数選択送信',
                 '✅ ドラッグ&ドロップでファイル送信',
                 '✅ GitHubアップデート機能',
-                '💬 テキスト送信機能追加'
+                '💬 テキスト送信機能追加',
+                '🔔 受信時に通知音「ぴこん」'
             ]
         };
         
@@ -642,6 +643,7 @@
                             
                             // テキストメッセージの場合
                             if (fileInfo.type === 'text') {
+                                playNotificationSound(); // 通知音再生
                                 showReceivedText(fileInfo.text, fileInfo.from);
                                 return;
                             }
@@ -663,6 +665,7 @@
                         const result = await ipcRenderer.invoke('save-file', fileInfo.name, Array.from(receivedData));
                         hideProgress();
                         if (result.success) {
+                            playNotificationSound(); // 通知音再生
                             alert(`✅ ファイル受信完了！\n\nファイル: ${fileInfo.name}\n保存先: ${result.filePath}`);
                         }
                     }
@@ -922,6 +925,32 @@
             return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
         }
         
+        // 通知音を再生する関数
+        function playNotificationSound() {
+            // Web Audio APIで「ぴこん」という音を生成
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // オシレーター（音を生成）
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            // 音の設定
+            oscillator.type = 'sine'; // 正弦波（柔らかい音）
+            oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // 高めの音
+            oscillator.frequency.exponentialRampToValueAtTime(600, audioContext.currentTime + 0.1); // 少し下がる
+            
+            // 音量の設定（フェードアウト）
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime); // 初期音量
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2); // フェードアウト
+            
+            // 接続
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            // 再生
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.2); // 0.2秒で停止
+        }
         function openNameModal() {
             document.getElementById('nameInput').value = myName;
             document.getElementById('nameModal').classList.add('show');
