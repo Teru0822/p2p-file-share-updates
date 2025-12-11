@@ -188,6 +188,142 @@
         .empty-icon { font-size: 64px; margin-bottom: 20px; }
         
         .progress-overlay {
+        .text-send-btn {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            margin-left: 8px;
+        }
+        .text-send-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+        }
+        .text-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+        .text-modal.active {
+            display: flex;
+        }
+        .text-modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .text-modal-header {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .text-input {
+            width: 100%;
+            min-height: 200px;
+            padding: 15px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            margin-bottom: 20px;
+        }
+        .text-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .text-modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        .text-modal-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .text-modal-btn.cancel {
+            background: #e5e7eb;
+            color: #333;
+        }
+        .text-modal-btn.send {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .text-modal-btn:hover {
+            transform: translateY(-2px);
+        }
+        .received-text-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+        .received-text-modal.active {
+            display: flex;
+        }
+        .received-text-content {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .received-text-header {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .received-text-from {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        .received-text-body {
+            flex: 1;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 10px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: inherit;
+        }
+        .received-text-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
             position: fixed;
             top: 0;
             left: 0;
@@ -417,9 +553,14 @@
         
         // バージョン情報（このファイルに埋め込み）
         const VERSION_INFO = {
-            version: '2.0.4',
+            version: '2.1.0',
             changelog: [
-                '一旦ファイル送信完成した'
+                '✅ IPMessenger風の自動デバイス検出',
+                '✅ PC名の自由編集＆即時反映',
+                '✅ チェックボックスで複数選択送信',
+                '✅ ドラッグ&ドロップでファイル送信',
+                '✅ GitHubアップデート機能',
+                '💬 テキスト送信機能追加'
             ]
         };
         
@@ -498,19 +639,27 @@
                         if (receivedData.length >= 4 + headerSize) {
                             const headerJSON = receivedData.slice(4, 4 + headerSize).toString();
                             fileInfo = JSON.parse(headerJSON);
+                            
+                            // テキストメッセージの場合
+                            if (fileInfo.type === 'text') {
+                                showReceivedText(fileInfo.text, fileInfo.from);
+                                return;
+                            }
+                            
+                            // ファイル転送の場合
                             expectedSize = fileInfo.size;
                             receivedData = receivedData.slice(4 + headerSize);
                             showProgress('📥 受信中...', fileInfo.name, fileInfo.size);
                         }
                     }
                     
-                    if (fileInfo) {
+                    if (fileInfo && fileInfo.type !== 'text') {
                         updateProgress(receivedData.length, expectedSize, expectedSize);
                     }
                 });
                 
                 socket.on('end', async () => {
-                    if (fileInfo && receivedData.length === expectedSize) {
+                    if (fileInfo && fileInfo.type !== 'text' && receivedData.length === expectedSize) {
                         const result = await ipcRenderer.invoke('save-file', fileInfo.name, Array.from(receivedData));
                         hideProgress();
                         if (result.success) {
@@ -587,6 +736,7 @@
                                 <div class="peer-ip">${p.ip}</div>
                             </div>
                         </div>
+                        <button class="text-send-btn" onclick="showTextModal('${p.ip}', '${p.name}')">💬 テキスト</button>
                         <button class="btn btn-success" onclick="sendFile('${p.ip}')">📤 送信</button>
                     </div>
                 `).join('');
@@ -885,10 +1035,121 @@
             localStorage.setItem('ignored_update_version', version);
         }
         setInterval(updatePeerList, 2000);
+        // テキスト送信モーダル
+        let currentTextTarget = null;
+        
+        function showTextModal(targetIP, targetName) {
+            currentTextTarget = { ip: targetIP, name: targetName };
+            const modal = document.getElementById('textModal');
+            document.getElementById('textModalTitle').textContent = `${targetName} へテキスト送信`;
+            document.getElementById('textInput').value = '';
+            modal.classList.add('active');
+            document.getElementById('textInput').focus();
+        }
+        
+        function closeTextModal() {
+            document.getElementById('textModal').classList.remove('active');
+            currentTextTarget = null;
+        }
+        
+        async function sendText() {
+            const text = document.getElementById('textInput').value.trim();
+            if (!text) {
+                alert('テキストを入力してください');
+                return;
+            }
+            
+            if (!currentTextTarget) return;
+            
+            closeTextModal();
+            
+            showProgress('📤 送信中...', `${currentTextTarget.name} にテキストを送信しています`, 0);
+            
+            try {
+                await sendTextData(currentTextTarget.ip, text, currentTextTarget.name);
+                hideProgress();
+                alert('✅ テキスト送信完了！');
+            } catch (err) {
+                hideProgress();
+                alert('❌ テキスト送信エラー: ' + err.message);
+            }
+        }
+        
+        function sendTextData(targetIP, text, targetName) {
+            return new Promise((resolve, reject) => {
+                const client = new net.Socket();
+                
+                client.connect(TRANSFER_PORT, targetIP, () => {
+                    const metadata = {
+                        type: 'text',
+                        text: text,
+                        from: myName,
+                        timestamp: Date.now()
+                    };
+                    
+                    const headerBuffer = Buffer.from(JSON.stringify(metadata), 'utf8');
+                    const headerSize = Buffer.alloc(4);
+                    headerSize.writeUInt32BE(headerBuffer.length, 0);
+                    
+                    client.write(headerSize);
+                    client.write(headerBuffer);
+                    client.end();
+                });
+                
+                client.on('end', () => {
+                    resolve();
+                });
+                
+                client.on('error', (err) => {
+                    reject(err);
+                });
+            });
+        }
+        
+        // 受信したテキストを表示
+        function showReceivedText(text, fromName) {
+            const modal = document.getElementById('receivedTextModal');
+            document.getElementById('receivedTextFrom').textContent = `From: ${fromName}`;
+            document.getElementById('receivedTextBody').textContent = text;
+            modal.classList.add('active');
+        }
+        
+        function closeReceivedTextModal() {
+            document.getElementById('receivedTextModal').classList.remove('active');
+        }
+        
+        function copyReceivedText() {
+            const text = document.getElementById('receivedTextBody').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('✅ クリップボードにコピーしました');
+            });
+        }
         init();
     </script>
+    
+    <!-- テキスト送信モーダル -->
+    <div id="textModal" class="text-modal">
+        <div class="text-modal-content">
+            <div class="text-modal-header" id="textModalTitle">テキスト送信</div>
+            <textarea id="textInput" class="text-input" placeholder="送信するテキストを入力してください..."></textarea>
+            <div class="text-modal-buttons">
+                <button class="text-modal-btn cancel" onclick="closeTextModal()">キャンセル</button>
+                <button class="text-modal-btn send" onclick="sendText()">送信</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 受信テキスト表示モーダル -->
+    <div id="receivedTextModal" class="received-text-modal">
+        <div class="received-text-content">
+            <div class="received-text-header">📨 テキスト受信</div>
+            <div class="received-text-from" id="receivedTextFrom">From: </div>
+            <div class="received-text-body" id="receivedTextBody"></div>
+            <div class="received-text-buttons">
+                <button class="text-modal-btn cancel" onclick="closeReceivedTextModal()">閉じる</button>
+                <button class="text-modal-btn send" onclick="copyReceivedText()">📋 コピー</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
-
-
-
