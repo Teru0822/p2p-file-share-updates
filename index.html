@@ -553,7 +553,7 @@
         
         // バージョン情報（このファイルに埋め込み）
         const VERSION_INFO = {
-            version: '2.1.1',
+            version: '2.1.2',
             changelog: [
                 '✅ IPMessenger風の自動デバイス検出',
                 '✅ PC名の自由編集＆即時反映',
@@ -561,7 +561,8 @@
                 '✅ ドラッグ&ドロップでファイル送信',
                 '✅ GitHubアップデート機能',
                 '💬 テキスト送信機能追加',
-                '🔔 受信時に通知音「ぴこん」'
+                '🔔 受信時に通知音「ぴこん」',
+                '10sごとにアプデ受信'
             ]
         };
         
@@ -604,6 +605,10 @@
             
             // アップデートチェック（起動5秒後）
             setTimeout(checkForUpdates, 5000);
+            
+            // 定期的なアップデートチェック（10sごと）
+            const UPDATE_CHECK_INTERVAL = 10000; // 10s
+            setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
         }
         function setupBroadcast() {
             broadcastSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
@@ -1182,3 +1187,4 @@
     </div>
 </body>
 </html>
+
