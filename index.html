@@ -553,17 +553,9 @@
         
         // バージョン情報（このファイルに埋め込み）
         const VERSION_INFO = {
-            version: '2.1.4',
+            version: '2.1.5',
             changelog: [
-                '✅ IPMessenger風の自動デバイス検出',
-                '✅ PC名の自由編集＆即時反映',
-                '✅ チェックボックスで複数選択送信',
-                '✅ ドラッグ&ドロップでファイル送信',
-                '✅ GitHubアップデート機能',
-                '💬 テキスト送信機能追加',
-                '🔔 受信時に通知音「ぴこん」',
-                '🔄 6時間ごとに自動アップデートチェック',
-                '🐛 テキスト送受信の修正'
+                'メッセージが適切に送信されるように修正'
             ]
         };
         
@@ -663,10 +655,14 @@
                             // テキストメッセージの場合
                             if (fileInfo.type === 'text') {
                                 isTextMessage = true;
+                                expectedSize = 0; // テキストの場合はサイズ0
+                                receivedData = Buffer.alloc(0); // データをクリア
+                                
+                                console.log('📨 テキストメッセージ受信:', fileInfo);
+                                
                                 playNotificationSound(); // 通知音再生
                                 showReceivedText(fileInfo.text, fileInfo.from);
-                                // socket.end()を待たずにここで処理完了
-                                socket.destroy(); // 接続を切断
+                                socket.end(); // ← socket.destroy() ではなく socket.end()
                                 return;
                             }
                             
@@ -1165,8 +1161,10 @@
                     console.log('ヘッダーサイズ:', headerBuffer.length);
                     
                     client.write(headerSize);
-                    client.write(headerBuffer);
-                    client.end();
+                    client.write(headerBuffer, () => {
+                        console.log('データ書き込み完了');
+                        client.end(); // ← コールバック内でend()を呼ぶ
+                    });
                     
                     console.log('送信完了');
                 });
@@ -1230,3 +1228,4 @@
     </div>
 </body>
 </html>
+
