@@ -553,7 +553,7 @@
         
         // バージョン情報（このファイルに埋め込み）
         const VERSION_INFO = {
-            version: '2.1.5',
+            version: '2.1.6',
             changelog: [
                 'メッセージが適切に送信されるように修正'
             ]
@@ -585,6 +585,12 @@
         }
         
         function init() {
+            const savedVersion = localStorage.getItem('app_version');
+            if (!savedVersion || savedVersion !== CURRENT_VERSION) {
+                console.log('バージョン情報を更新:', CURRENT_VERSION);
+                localStorage.setItem('app_version', CURRENT_VERSION);
+                localStorage.setItem('last_checked_version', CURRENT_VERSION);
+            }
             document.getElementById('myName').textContent = myName;
             document.getElementById('statusText').textContent = `待機中 (${myIP})`;
             
@@ -1027,16 +1033,25 @@
                         
                         // 現在のバージョン
                         const currentVersion = CURRENT_VERSION;
+                                           
+                        // 保存されているバージョンと比較
+                        const savedVersion = localStorage.getItem('app_version') || '0.0.0';
+                        const lastChecked = localStorage.getItem('last_checked_version') || '0.0.0';
                         
-                        // デバッグ用
-                        console.log('バージョンチェック:');
+                        console.log('バージョン比較:');
                         console.log('  リモート:', remoteVersion);
                         console.log('  現在:', currentVersion);
+                        console.log('  保存済み:', savedVersion);
+                        console.log('  最終チェック:', lastChecked);
                         
-                        // 判定：リモートバージョンが現在のバージョンと異なる場合のみ通知
-                        if (remoteVersion !== currentVersion) {
+                        // 判定：リモートバージョンが保存済みバージョンより新しい場合のみ通知
+                        if (remoteVersion !== savedVersion && remoteVersion !== lastChecked) {
+                            console.log('✅ 新しいバージョンを検出');
                             showUpdateBanner(remoteVersionInfo);
+                        } else {
+                            console.log('⏭️ アップデート不要（最新版です）');
                         }
+                        
                     } catch (err) {
                         console.error('アップデートチェックエラー:', err);
                     }
@@ -1068,10 +1083,28 @@
                 hideProgress();
                 
                 if (result.success) {
-                    // アップデートしたバージョンを記録
-                    localStorage.setItem('last_checked_version', versionInfo.version);
-                    localStorage.setItem('app_version', versionInfo.version);
-                    console.log('✅ アップデート完了:', versionInfo.version);
+                    // アップデートしたバージョンを記録（3回保存して確実に）
+                    try {
+                        localStorage.setItem('last_checked_version', versionInfo.version);
+                        localStorage.setItem('app_version', versionInfo.version);
+                        localStorage.setItem('ignored_update_version', ''); // 無視リストをクリア
+                        
+                        // 保存確認
+                        const saved = localStorage.getItem('app_version');
+                        console.log('✅ アップデート完了:', versionInfo.version);
+                        console.log('✅ 保存確認:', saved);
+                        
+                        if (saved !== versionInfo.version) {
+                            console.error('⚠️ 保存に失敗しました。手動で設定します。');
+                            // 強制保存
+                            for (let i = 0; i < 3; i++) {
+                                localStorage.setItem('app_version', versionInfo.version);
+                                localStorage.setItem('last_checked_version', versionInfo.version);
+                            }
+                        }
+                    } catch (err) {
+                        console.error('localStorage保存エラー:', err);
+                    }
                     
                     // 自動的に再起動（確認なし）
                     const restartMsg = document.createElement('div');
@@ -1228,4 +1261,5 @@
     </div>
 </body>
 </html>
+
 
