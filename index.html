@@ -611,7 +611,7 @@
         const https = require('https');
         
         const VERSION_INFO = {
-            version: '2.3.0',
+            version: '2.3.1',
             changelog: [
                 '✅ IPMessenger風の自動デバイス検出',
                 '✅ PC名の自由編集＆即時反映',
@@ -738,7 +738,14 @@
                                 console.log('💬 メッセージ受信:', {
                                     from: fileInfo.from,
                                     textLength: fileInfo.text ? fileInfo.text.length : 0,
-                                    fileCount: fileInfo.fileCount || 0
+                                    fileCount: fileInfo.fileCount || 0,
+                                    filesReceived: fileInfo.files ? fileInfo.files.length : 0,
+                                    fileDetails: fileInfo.files ? fileInfo.files.map(f => ({
+                                        name: f.name,
+                                        size: f.size,
+                                        hasData: !!f.data,
+                                        dataLength: f.data ? f.data.length : 0
+                                    })) : []
                                 });
                                 
                                 playNotificationSound();
@@ -1183,7 +1190,9 @@
                     console.log('📤 データ送信:', {
                         textLength: text.length,
                         fileCount: filesData.length,
-                        headerSize: headerBuffer.length
+                        headerSize: headerBuffer.length,
+                        totalDataSize: JSON.stringify(metadata).length,
+                        files: filesData.map(f => ({ name: f.name, size: f.size, dataLength: f.data.length }))
                     });
                     
                     client.write(headerSize);
@@ -1209,6 +1218,18 @@
         }
         
         function showReceivedMessage(text, fromName, files) {
+            console.log('📨 受信メッセージ表示:', {
+                text: text,
+                fromName: fromName,
+                filesCount: files ? files.length : 0,
+                files: files ? files.map(f => ({
+                    name: f.name,
+                    size: f.size,
+                    hasData: !!f.data,
+                    dataLength: f.data ? f.data.length : 0
+                })) : []
+            });
+            
             const modal = document.getElementById('receivedModal');
             document.getElementById('receivedFrom').textContent = `From: ${fromName}`;
             document.getElementById('receivedMessageBody').textContent = text || '（メッセージなし）';
