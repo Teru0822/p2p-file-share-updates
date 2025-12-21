@@ -191,7 +191,7 @@
         .empty-icon { font-size: 64px; margin-bottom: 20px; }
         
         .send-modal, .received-modal {
-            display: none;
+            display: none !important;
             position: fixed;
             top: 0;
             left: 0;
@@ -204,7 +204,7 @@
             pointer-events: none;
         }
         .send-modal.active, .received-modal.active {
-            display: flex;
+            display: flex !important;
             pointer-events: auto;
         }
         .modal-content {
@@ -1174,7 +1174,7 @@
             // モーダルが表示されてからフォーカスを当てる
             setTimeout(() => {
                 document.getElementById('messageInput').focus();
-            }, 10);
+            }, 50);
         }
         
         function closeSendModal() {
@@ -1186,6 +1186,7 @@
             attachedFiles = [];
             document.getElementById('messageInput').value = ''; // メッセージもクリア
             updateAttachedFileList();
+            document.activeElement.blur();
         }
         
         async function sendMessage() {
