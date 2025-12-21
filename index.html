@@ -187,7 +187,6 @@
         }
         .empty-icon { font-size: 64px; margin-bottom: 20px; }
         
-        .progress-overlay {
         .text-send-btn {
             padding: 8px 16px;
             background: linear-gradient(135deg, #10b981 0%, #059669 100%);
@@ -203,7 +202,7 @@
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
         }
-        .text-modal {
+        .text-modal, .received-text-modal {
             display: none;
             position: fixed;
             top: 0;
@@ -215,10 +214,10 @@
             align-items: center;
             justify-content: center;
         }
-        .text-modal.active {
+        .text-modal.active, .received-text-modal.active {
             display: flex;
         }
-        .text-modal-content {
+        .text-modal-content, .received-text-content {
             background: white;
             border-radius: 20px;
             padding: 30px;
@@ -227,11 +226,16 @@
             max-height: 80vh;
             overflow-y: auto;
         }
-        .text-modal-header {
+        .text-modal-header, .received-text-header {
             font-size: 24px;
             font-weight: bold;
             margin-bottom: 20px;
             color: #333;
+        }
+        .received-text-from {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 20px;
         }
         .text-input {
             width: 100%;
@@ -248,7 +252,18 @@
             outline: none;
             border-color: #667eea;
         }
-        .text-modal-buttons {
+        .received-text-body {
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: inherit;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .text-modal-buttons, .received-text-buttons {
             display: flex;
             gap: 10px;
             justify-content: flex-end;
@@ -272,58 +287,7 @@
         .text-modal-btn:hover {
             transform: translateY(-2px);
         }
-        .received-text-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 9999;
-            align-items: center;
-            justify-content: center;
-        }
-        .received-text-modal.active {
-            display: flex;
-        }
-        .received-text-content {
-            background: white;
-            border-radius: 20px;
-            padding: 30px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 80vh;
-            display: flex;
-            flex-direction: column;
-        }
-        .received-text-header {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: #333;
-        }
-        .received-text-from {
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 20px;
-        }
-        .received-text-body {
-            flex: 1;
-            padding: 15px;
-            background: #f9fafb;
-            border-radius: 10px;
-            overflow-y: auto;
-            margin-bottom: 20px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            font-family: inherit;
-        }
-        .received-text-buttons {
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-        }
+        .progress-overlay {
             position: fixed;
             top: 0;
             left: 0;
@@ -480,7 +444,7 @@
         <div class="card">
             <div class="header">
                 <div>
-                    <div class="title">📡 P2Pファイル共有</div>
+                    <div class="title">📡 P2Pファイル共有 v2.2.0</div>
                     <div class="subtitle" id="statusText">待機中...</div>
                 </div>
                 <div class="status">
@@ -540,6 +504,29 @@
         </div>
     </div>
 
+    <div id="textModal" class="text-modal">
+        <div class="text-modal-content">
+            <div class="text-modal-header" id="textModalTitle">テキスト送信</div>
+            <textarea id="textInput" class="text-input" placeholder="送信するテキストを入力してください..."></textarea>
+            <div class="text-modal-buttons">
+                <button class="text-modal-btn cancel" onclick="closeTextModal()">キャンセル</button>
+                <button class="text-modal-btn send" onclick="sendText()">送信</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="receivedTextModal" class="received-text-modal">
+        <div class="received-text-content">
+            <div class="received-text-header">📨 テキスト受信</div>
+            <div class="received-text-from" id="receivedTextFrom">From: </div>
+            <div class="received-text-body" id="receivedTextBody"></div>
+            <div class="received-text-buttons">
+                <button class="text-modal-btn cancel" onclick="closeReceivedTextModal()">閉じる</button>
+                <button class="text-modal-btn send" onclick="copyReceivedText()">📋 コピー</button>
+            </div>
+        </div>
+    </div>
+
     <input type="file" id="fileInput" style="display: none;" multiple>
 
     <script>
@@ -548,14 +535,22 @@
         const dgram = require('dgram');
         const net = require('net');
         const https = require('https');
-        const fs = require('fs');
-        const path = require('path');
         
         // バージョン情報（このファイルに埋め込み）
         const VERSION_INFO = {
-            version: '2.1.6',
+            version: '2.2.7',
             changelog: [
-                'メッセージが適切に送信されるように修正'
+                '✅ IPMessenger風の自動デバイス検出',
+                '✅ PC名の自由編集＆即時反映',
+                '✅ チェックボックスで複数選択送信',
+                '✅ ドラッグ&ドロップでファイル送信',
+                '✅ GitHubアップデート機能',
+                '💬 テキスト送信機能（完全修正）',
+                '🔔 受信時に通知音「ぴこん」',
+                '🔄 6時間ごとに自動アップデートチェック',
+                '🐛 アップデート保存の完全修正',
+                '🐛 テキスト送受信の完全修正',
+                '🔧 開発者ツール自動表示'
             ]
         };
         
@@ -563,6 +558,7 @@
         const BROADCAST_PORT = 45678;
         const TRANSFER_PORT = 45679;
         const BROADCAST_INTERVAL = 3000;
+        const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000; // 6時間
         
         let myName = localStorage.getItem('p2p_pc_name') || os.hostname() || 'Unknown PC';
         let myIP = getLocalIP();
@@ -571,6 +567,7 @@
         let broadcastSocket;
         let transferServer;
         let currentTransfer = null;
+        let currentTextTarget = null;
         
         function getLocalIP() {
             const interfaces = os.networkInterfaces();
@@ -585,12 +582,19 @@
         }
         
         function init() {
-            const savedVersion = localStorage.getItem('app_version');
-            if (!savedVersion || savedVersion !== CURRENT_VERSION) {
-                console.log('バージョン情報を更新:', CURRENT_VERSION);
-                localStorage.setItem('app_version', CURRENT_VERSION);
-                localStorage.setItem('last_checked_version', CURRENT_VERSION);
-            }
+            console.log('='.repeat(70));
+            console.log('🚀 P2P File Share v' + CURRENT_VERSION + ' 起動');
+            console.log('='.repeat(70));
+            console.log('💻 PC名:', myName);
+            console.log('🌐 IP:', myIP);
+            console.log('📡 ブロードキャストポート:', BROADCAST_PORT);
+            console.log('📤 転送ポート:', TRANSFER_PORT);
+            console.log('='.repeat(70));
+            
+            // 起動時にバージョン情報を必ず保存
+            localStorage.setItem('app_version', CURRENT_VERSION);
+            console.log('✅ バージョン情報保存:', CURRENT_VERSION);
+            
             document.getElementById('myName').textContent = myName;
             document.getElementById('statusText').textContent = `待機中 (${myIP})`;
             
@@ -606,23 +610,15 @@
             setTimeout(checkForUpdates, 5000);
             
             // 定期的なアップデートチェック（6時間ごと）
-            const UPDATE_CHECK_INTERVAL = 10000; // 6時間（ミリ秒）
             setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
-        // バージョン情報デバッグ表示（開発者ツール用）
-        console.log('='.repeat(50));
-        console.log('P2P File Share - Version Info');
-        console.log('='.repeat(50));
-        console.log('Current Version:', CURRENT_VERSION);
-        console.log('Changelog:', VERSION_INFO.changelog);
-        console.log('localStorage app_version:', localStorage.getItem('app_version'));
-        console.log('localStorage last_checked_version:', localStorage.getItem('last_checked_version'));
-        console.log('localStorage ignored_update_version:', localStorage.getItem('ignored_update_version'));
-        console.log('='.repeat(50));
         }
+        
         function setupBroadcast() {
             broadcastSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
             
-            broadcastSocket.on('error', (err) => {});
+            broadcastSocket.on('error', (err) => {
+                console.error('❌ ブロードキャストエラー:', err);
+            });
             
             broadcastSocket.on('message', (msg, rinfo) => {
                 try {
@@ -635,6 +631,7 @@
             
             broadcastSocket.on('listening', () => {
                 broadcastSocket.setBroadcast(true);
+                console.log('✅ UDPブロードキャスト待受開始:', BROADCAST_PORT);
             });
             
             broadcastSocket.bind(BROADCAST_PORT);
@@ -647,28 +644,39 @@
                 let expectedSize = 0;
                 let isTextMessage = false;
                 
+                console.log('📥 接続受付:', socket.remoteAddress);
+                
                 socket.on('data', (data) => {
                     receivedData = Buffer.concat([receivedData, data]);
                     
+                    // ヘッダー解析
                     if (!fileInfo && receivedData.length >= 4) {
                         const headerSize = receivedData.readUInt32BE(0);
+                        
                         if (receivedData.length >= 4 + headerSize) {
-                            const headerJSON = receivedData.slice(4, 4 + headerSize).toString();
+                            const headerJSON = receivedData.slice(4, 4 + headerSize).toString('utf8');
                             fileInfo = JSON.parse(headerJSON);
                             
-                            console.log('受信データ:', fileInfo);
+                            console.log('📋 受信データ情報:', fileInfo);
                             
-                            // テキストメッセージの場合
+                            // テキストメッセージの判定
                             if (fileInfo.type === 'text') {
                                 isTextMessage = true;
-                                expectedSize = 0; // テキストの場合はサイズ0
-                                receivedData = Buffer.alloc(0); // データをクリア
+                                expectedSize = 0;
                                 
-                                console.log('📨 テキストメッセージ受信:', fileInfo);
+                                console.log('💬 テキストメッセージ受信:', {
+                                    from: fileInfo.from,
+                                    length: fileInfo.text.length
+                                });
                                 
-                                playNotificationSound(); // 通知音再生
+                                // 通知音再生
+                                playNotificationSound();
+                                
+                                // モーダル表示
                                 showReceivedText(fileInfo.text, fileInfo.from);
-                                socket.end(); // ← socket.destroy() ではなく socket.end()
+                                
+                                // 接続を正常終了
+                                socket.end();
                                 return;
                             }
                             
@@ -679,33 +687,46 @@
                         }
                     }
                     
-                    if (fileInfo && !isTextMessage) {
+                    // ファイルデータ受信中
+                    if (fileInfo && !isTextMessage && expectedSize > 0) {
                         updateProgress(receivedData.length, expectedSize, expectedSize);
                     }
                 });
                 
                 socket.on('end', async () => {
                     if (isTextMessage) {
-                        // テキストメッセージは既に処理済み
+                        console.log('✅ テキスト受信完了');
                         return;
                     }
                     
                     if (fileInfo && receivedData.length === expectedSize) {
+                        console.log('✅ ファイル受信完了:', fileInfo.name);
+                        
                         const result = await ipcRenderer.invoke('save-file', fileInfo.name, Array.from(receivedData));
                         hideProgress();
+                        
                         if (result.success) {
-                            playNotificationSound(); // 通知音再生
+                            playNotificationSound();
                             alert(`✅ ファイル受信完了！\n\nファイル: ${fileInfo.name}\n保存先: ${result.filePath}`);
+                        } else {
+                            alert('❌ ファイル保存に失敗しました');
                         }
                     }
                 });
                 
                 socket.on('error', (err) => {
-                    console.error('Socket error:', err);
+                    console.error('❌ ソケットエラー:', err);
+                    hideProgress();
                 });
             });
             
-            transferServer.listen(TRANSFER_PORT);
+            transferServer.listen(TRANSFER_PORT, () => {
+                console.log('✅ TCP転送サーバー起動:', TRANSFER_PORT);
+            });
+            
+            transferServer.on('error', (err) => {
+                console.error('❌ サーバーエラー:', err);
+            });
         }
         
         function startBroadcasting() {
@@ -718,7 +739,9 @@
                 
                 try {
                     broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255');
-                } catch (err) {}
+                } catch (err) {
+                    console.error('❌ 送信エラー:', err);
+                }
             }
             
             setTimeout(broadcast, 100);
@@ -738,6 +761,7 @@
             const now = Date.now();
             const TIMEOUT = 10000;
             
+            // タイムアウトしたピアを削除
             for (const [ip, peer] of discoveredPeers) {
                 if (now - peer.lastSeen > TIMEOUT) {
                     discoveredPeers.delete(ip);
@@ -832,6 +856,7 @@
         
         function sendFilesToMultiple(targets, files) {
             let targetIndex = 0, fileIndex = 0;
+            
             function sendNext() {
                 if (targetIndex >= targets.length) {
                     return alert(`✅ 全送信完了！\n\n送信先: ${targets.length}台\nファイル数: ${files.length}`);
@@ -854,17 +879,22 @@
             reader.onload = (e) => {
                 const fileData = Buffer.from(e.target.result);
                 const fileInfo = { name: file.name, type: file.type, size: file.size };
+                
                 const client = net.createConnection({ port: TRANSFER_PORT, host: targetIP }, () => {
+                    console.log('📤 ファイル送信開始:', targetIP, file.name);
                     showProgress('📤 送信中...', file.name, file.size);
+                    
                     const headerJSON = JSON.stringify(fileInfo);
-                    const headerBuffer = Buffer.from(headerJSON);
+                    const headerBuffer = Buffer.from(headerJSON, 'utf8');
                     const headerSize = Buffer.alloc(4);
                     headerSize.writeUInt32BE(headerBuffer.length, 0);
+                    
                     client.write(headerSize);
                     client.write(headerBuffer);
                     
                     const CHUNK_SIZE = 64 * 1024;
                     let offset = 0;
+                    
                     function sendChunk() {
                         if (currentTransfer && currentTransfer.cancelled) {
                             client.end();
@@ -875,6 +905,7 @@
                         if (offset >= fileData.length) {
                             client.end();
                             hideProgress();
+                            console.log('✅ ファイル送信完了:', file.name);
                             if (!callback) alert(`✅ 送信完了！\n\nファイル: ${file.name}`);
                             if (callback) callback();
                             return;
@@ -889,7 +920,9 @@
                     currentTransfer = { cancelled: false };
                     sendChunk();
                 });
-                client.on('error', () => {
+                
+                client.on('error', (err) => {
+                    console.error('❌ 送信エラー:', err);
                     hideProgress();
                     if (callback) callback();
                 });
@@ -912,6 +945,7 @@
             event.preventDefault();
             event.stopPropagation();
             document.getElementById('peer-' + ip.replace(/\./g, '-')).classList.remove('drag-over');
+            
             const items = event.dataTransfer.items;
             const files = [];
             if (items) {
@@ -958,32 +992,25 @@
             return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
         }
         
-        // 通知音を再生する関数
         function playNotificationSound() {
-            // Web Audio APIで「ぴこん」という音を生成
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            
-            // オシレーター（音を生成）
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
             
-            // 音の設定
-            oscillator.type = 'sine'; // 正弦波（柔らかい音）
-            oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // 高めの音
-            oscillator.frequency.exponentialRampToValueAtTime(600, audioContext.currentTime + 0.1); // 少し下がる
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(600, audioContext.currentTime + 0.1);
             
-            // 音量の設定（フェードアウト）
-            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime); // 初期音量
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2); // フェードアウト
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
             
-            // 接続
             oscillator.connect(gainNode);
             gainNode.connect(audioContext.destination);
             
-            // 再生
             oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + 0.2); // 0.2秒で停止
+            oscillator.stop(audioContext.currentTime + 0.2);
         }
+        
         function openNameModal() {
             document.getElementById('nameInput').value = myName;
             document.getElementById('nameModal').classList.add('show');
@@ -1001,136 +1028,15 @@
                 localStorage.setItem('p2p_pc_name', myName);
                 document.getElementById('myName').textContent = myName;
                 closeNameModal();
+                
                 const message = JSON.stringify({ type: 'announce', name: myName, ip: myIP });
                 broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255');
+                
+                console.log('✅ PC名変更:', myName);
             } else {
                 alert('PC名を入力してください');
             }
         }
-        
-        function checkForUpdates() {
-            // アップデート用のURLからindex.htmlを取得して、VERSION_INFOを抽出
-            const updateUrl = 'https://Teru0822.github.io/p2p-file-share-updates/index.html';
-            
-            https.get(updateUrl, (res) => {
-                let data = '';
-                res.on('data', (chunk) => { data += chunk; });
-                res.on('end', () => {
-                    try {
-                        // HTML内からVERSION_INFOを抽出
-                        const match = data.match(/const VERSION_INFO = ({[\s\S]*?});/);
-                        if (!match) {
-                            console.log('リモートバージョン情報が見つかりません');
-                            return;
-                        }
-                        
-                        const remoteVersionInfo = eval('(' + match[1] + ')');
-                        const remoteVersion = remoteVersionInfo.version;
-                        
-                        // 無視リスト確認
-                        const ignoredVersion = localStorage.getItem('ignored_update_version');
-                        if (remoteVersion === ignoredVersion) return;
-                        
-                        // 現在のバージョン
-                        const currentVersion = CURRENT_VERSION;
-                                           
-                        // 保存されているバージョンと比較
-                        const savedVersion = localStorage.getItem('app_version') || '0.0.0';
-                        const lastChecked = localStorage.getItem('last_checked_version') || '0.0.0';
-                        
-                        console.log('バージョン比較:');
-                        console.log('  リモート:', remoteVersion);
-                        console.log('  現在:', currentVersion);
-                        console.log('  保存済み:', savedVersion);
-                        console.log('  最終チェック:', lastChecked);
-                        
-                        // 判定：リモートバージョンが保存済みバージョンより新しい場合のみ通知
-                        if (remoteVersion !== savedVersion && remoteVersion !== lastChecked) {
-                            console.log('✅ 新しいバージョンを検出');
-                            showUpdateBanner(remoteVersionInfo);
-                        } else {
-                            console.log('⏭️ アップデート不要（最新版です）');
-                        }
-                        
-                    } catch (err) {
-                        console.error('アップデートチェックエラー:', err);
-                    }
-                });
-            }).on('error', () => {});
-        }
-        
-        function showUpdateBanner(versionInfo) {
-            if (document.querySelector('.update-banner')) return;
-            const banner = document.createElement('div');
-            banner.className = 'update-banner';
-            banner.innerHTML = `
-                🎉 新しいバージョン ${versionInfo.version} が利用可能です！<br>クリックしてアップデート
-                <button class="update-banner-close" onclick="event.stopPropagation(); ignoreUpdate('${versionInfo.version}'); this.parentElement.remove();">×</button>
-            `;
-            banner.onclick = () => applyUpdate(versionInfo);
-            document.body.appendChild(banner);
-        }
-        
-        async function applyUpdate(versionInfo) {
-            const updateUrl = 'https://Teru0822.github.io/p2p-file-share-updates/index.html';
-            const banner = document.querySelector('.update-banner');
-            if (banner) banner.remove();
-            
-            showProgress('⬇️ アップデート中...', 'index.htmlをダウンロードしています', 0);
-            
-            try {
-                const result = await ipcRenderer.invoke('download-update', updateUrl, versionInfo.version);
-                hideProgress();
-                
-                if (result.success) {
-                    // アップデートしたバージョンを記録（3回保存して確実に）
-                    try {
-                        localStorage.setItem('last_checked_version', versionInfo.version);
-                        localStorage.setItem('app_version', versionInfo.version);
-                        localStorage.setItem('ignored_update_version', ''); // 無視リストをクリア
-                        
-                        // 保存確認
-                        const saved = localStorage.getItem('app_version');
-                        console.log('✅ アップデート完了:', versionInfo.version);
-                        console.log('✅ 保存確認:', saved);
-                        
-                        if (saved !== versionInfo.version) {
-                            console.error('⚠️ 保存に失敗しました。手動で設定します。');
-                            // 強制保存
-                            for (let i = 0; i < 3; i++) {
-                                localStorage.setItem('app_version', versionInfo.version);
-                                localStorage.setItem('last_checked_version', versionInfo.version);
-                            }
-                        }
-                    } catch (err) {
-                        console.error('localStorage保存エラー:', err);
-                    }
-                    
-                    // 自動的に再起動（確認なし）
-                    const restartMsg = document.createElement('div');
-                    restartMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:40px;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.5);z-index:9999;text-align:center;';
-                    restartMsg.innerHTML = '<div style="font-size:24px;font-weight:bold;margin-bottom:10px;">✅ アップデート完了</div><div style="color:#666;">3秒後に自動で再起動します...</div>';
-                    document.body.appendChild(restartMsg);
-                    
-                    // 3秒後に再起動
-                    setTimeout(async () => {
-                        await ipcRenderer.invoke('restart-app');
-                    }, 3000);
-                } else {
-                    alert('❌ アップデートに失敗しました');
-                }
-            } catch (err) {
-                hideProgress();
-                alert('❌ アップデートエラー: ' + err.message);
-            }
-        }
-        
-        function ignoreUpdate(version) {
-            localStorage.setItem('ignored_update_version', version);
-        }
-        setInterval(updatePeerList, 2000);
-        // テキスト送信モーダル
-        let currentTextTarget = null;
         
         function showTextModal(targetIP, targetName) {
             currentTextTarget = { ip: targetIP, name: targetName };
@@ -1153,18 +1059,25 @@
                 return;
             }
             
-            if (!currentTextTarget) return;
+            if (!currentTextTarget) {
+                alert('送信先が選択されていません');
+                closeTextModal();
+                return;
+            }
+            
+            // 送信先情報を保存（モーダルを閉じる前に）
+            const targetIP = currentTextTarget.ip;
+            const targetName = currentTextTarget.name;
             
             closeTextModal();
             
-            showProgress('📤 送信中...', `${currentTextTarget.name} にテキストを送信しています`, 0);
-            
             try {
-                await sendTextData(currentTextTarget.ip, text, currentTextTarget.name);
-                hideProgress();
+                console.log('💬 テキスト送信開始:', targetName);
+                await sendTextData(targetIP, text, targetName);
+                console.log('✅ テキスト送信完了');
                 alert('✅ テキスト送信完了！');
             } catch (err) {
-                hideProgress();
+                console.error('❌ テキスト送信エラー:', err);
                 alert('❌ テキスト送信エラー: ' + err.message);
             }
         }
@@ -1172,11 +1085,20 @@
         function sendTextData(targetIP, text, targetName) {
             return new Promise((resolve, reject) => {
                 const client = new net.Socket();
+                let connected = false;
                 
-                console.log('テキスト送信開始:', { targetIP, targetName, textLength: text.length });
+                const timeout = setTimeout(() => {
+                    if (!connected) {
+                        client.destroy();
+                        reject(new Error('接続タイムアウト'));
+                    }
+                }, 5000);
                 
                 client.connect(TRANSFER_PORT, targetIP, () => {
-                    console.log('接続成功:', targetIP);
+                    connected = true;
+                    clearTimeout(timeout);
+                    
+                    console.log('🔗 接続成功:', targetIP);
                     
                     const metadata = {
                         type: 'text',
@@ -1185,36 +1107,36 @@
                         timestamp: Date.now()
                     };
                     
-                    console.log('送信データ:', metadata);
-                    
                     const headerBuffer = Buffer.from(JSON.stringify(metadata), 'utf8');
                     const headerSize = Buffer.alloc(4);
                     headerSize.writeUInt32BE(headerBuffer.length, 0);
                     
-                    console.log('ヘッダーサイズ:', headerBuffer.length);
+                    console.log('📤 データ送信:', { length: text.length, headerSize: headerBuffer.length });
                     
+                    // ヘッダーとデータを送信してから接続を閉じる
                     client.write(headerSize);
                     client.write(headerBuffer, () => {
-                        console.log('データ書き込み完了');
-                        client.end(); // ← コールバック内でend()を呼ぶ
+                        console.log('✅ 書き込み完了');
+                        // データが確実に送信されるまで少し待つ
+                        setTimeout(() => {
+                            client.end();
+                        }, 100);
                     });
-                    
-                    console.log('送信完了');
                 });
                 
                 client.on('end', () => {
-                    console.log('接続終了');
+                    console.log('🔌 接続終了');
                     resolve();
                 });
                 
                 client.on('error', (err) => {
-                    console.error('送信エラー:', err);
+                    console.error('❌ 接続エラー:', err);
+                    clearTimeout(timeout);
                     reject(err);
                 });
             });
         }
         
-        // 受信したテキストを表示
         function showReceivedText(text, fromName) {
             const modal = document.getElementById('receivedTextModal');
             document.getElementById('receivedTextFrom').textContent = `From: ${fromName}`;
@@ -1232,34 +1154,121 @@
                 alert('✅ クリップボードにコピーしました');
             });
         }
+        
+        function checkForUpdates() {
+            const updateUrl = 'https://Teru0822.github.io/p2p-file-share-updates/index.html';
+            
+            console.log('🔍 アップデートチェック開始...');
+            
+            https.get(updateUrl, (res) => {
+                let data = '';
+                res.on('data', (chunk) => { data += chunk; });
+                res.on('end', () => {
+                    try {
+                        const match = data.match(/const VERSION_INFO = ({[\s\S]*?});/);
+                        if (!match) {
+                            console.log('⚠️ リモートバージョン情報が見つかりません');
+                            return;
+                        }
+                        
+                        const remoteVersionInfo = eval('(' + match[1] + ')');
+                        const remoteVersion = remoteVersionInfo.version;
+                        
+                        // 無視リスト確認
+                        const ignoredVersion = localStorage.getItem('ignored_update_version');
+                        if (remoteVersion === ignoredVersion) {
+                            console.log('⏭️ このバージョンは無視リストに登録済み:', remoteVersion);
+                            return;
+                        }
+                        
+                        console.log('📊 バージョン比較:');
+                        console.log('  現在:', CURRENT_VERSION);
+                        console.log('  リモート:', remoteVersion);
+                        
+                        // HTMLに埋め込まれたバージョンとリモートを比較
+                        if (remoteVersion !== CURRENT_VERSION) {
+                            console.log('🎉 新しいバージョンを検出:', remoteVersion);
+                            showUpdateBanner(remoteVersionInfo);
+                        } else {
+                            console.log('✅ 最新版です');
+                        }
+                    } catch (err) {
+                        console.error('❌ アップデートチェックエラー:', err);
+                    }
+                });
+            }).on('error', (err) => {
+                console.error('❌ HTTP取得エラー:', err);
+            });
+        }
+        
+        function showUpdateBanner(versionInfo) {
+            if (document.querySelector('.update-banner')) return;
+            
+            const banner = document.createElement('div');
+            banner.className = 'update-banner';
+            banner.innerHTML = `
+                🎉 新しいバージョン ${versionInfo.version} が利用可能です！<br>クリックしてアップデート
+                <button class="update-banner-close" onclick="event.stopPropagation(); ignoreUpdate('${versionInfo.version}'); this.parentElement.remove();">×</button>
+            `;
+            banner.onclick = () => applyUpdate(versionInfo);
+            document.body.appendChild(banner);
+        }
+        
+        async function applyUpdate(versionInfo) {
+            const updateUrl = 'https://Teru0822.github.io/p2p-file-share-updates/index.html';
+            const banner = document.querySelector('.update-banner');
+            if (banner) banner.remove();
+            
+            console.log('⬇️ アップデート開始:', versionInfo.version);
+            showProgress('⬇️ アップデート中...', 'index.htmlをダウンロードしています', 0);
+            
+            try {
+                const result = await ipcRenderer.invoke('download-update', updateUrl, versionInfo.version);
+                hideProgress();
+                
+                if (result.success) {
+                    console.log('✅ ファイル保存成功:', result.filePath);
+                    
+                    // バージョン情報をlocalStorageに保存
+                    localStorage.setItem('app_version', versionInfo.version);
+                    console.log('✅ localStorage保存:', versionInfo.version);
+                    
+                    // 確認メッセージ
+                    const restartMsg = document.createElement('div');
+                    restartMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:40px;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.5);z-index:9999;text-align:center;';
+                    restartMsg.innerHTML = `
+                        <div style="font-size:24px;font-weight:bold;margin-bottom:10px;">✅ アップデート完了</div>
+                        <div style="color:#666;margin-bottom:20px;">v${versionInfo.version} にアップデートしました</div>
+                        <div style="color:#666;">3秒後に自動で再起動します...</div>
+                    `;
+                    document.body.appendChild(restartMsg);
+                    
+                    // 3秒後に再起動
+                    setTimeout(async () => {
+                        console.log('🔄 再起動実行');
+                        await ipcRenderer.invoke('restart-app');
+                    }, 3000);
+                } else {
+                    console.error('❌ アップデート失敗:', result.error);
+                    alert('❌ アップデートに失敗しました: ' + result.error);
+                }
+            } catch (err) {
+                hideProgress();
+                console.error('❌ アップデートエラー:', err);
+                alert('❌ アップデートエラー: ' + err.message);
+            }
+        }
+        
+        function ignoreUpdate(version) {
+            localStorage.setItem('ignored_update_version', version);
+            console.log('⏭️ アップデート無視:', version);
+        }
+        
+        // ピアリスト定期更新
+        setInterval(updatePeerList, 2000);
+        
+        // 初期化実行
         init();
     </script>
-    
-    <!-- テキスト送信モーダル -->
-    <div id="textModal" class="text-modal">
-        <div class="text-modal-content">
-            <div class="text-modal-header" id="textModalTitle">テキスト送信</div>
-            <textarea id="textInput" class="text-input" placeholder="送信するテキストを入力してください..."></textarea>
-            <div class="text-modal-buttons">
-                <button class="text-modal-btn cancel" onclick="closeTextModal()">キャンセル</button>
-                <button class="text-modal-btn send" onclick="sendText()">送信</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- 受信テキスト表示モーダル -->
-    <div id="receivedTextModal" class="received-text-modal">
-        <div class="received-text-content">
-            <div class="received-text-header">📨 テキスト受信</div>
-            <div class="received-text-from" id="receivedTextFrom">From: </div>
-            <div class="received-text-body" id="receivedTextBody"></div>
-            <div class="received-text-buttons">
-                <button class="text-modal-btn cancel" onclick="closeReceivedTextModal()">閉じる</button>
-                <button class="text-modal-btn send" onclick="copyReceivedText()">📋 コピー</button>
-            </div>
-        </div>
-    </div>
 </body>
 </html>
-
-
