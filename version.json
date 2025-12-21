@@ -1,8 +1,10 @@
 {
   "version": "2.3.0",
   "updateUrl": "https://Teru0822.github.io/p2p-file-share-updates/index.html",
-  "changelog": "アプデ"
+  "changelog": "フォルダをドラッグアンドドロップできない、「送信」ウィンドウでフォルダのドラッグアンドドロップが効かない、10秒おきにアップデートの確認が行われていない、"
+  
 }
+
 
 
 
