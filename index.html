@@ -193,18 +193,19 @@
         .send-modal, .received-modal {
             display: none !important;
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0, 0, 0, 0.5);
-            z-index: 9999;
+            /* --- 修正点: 閉じている時は最背面に飛ばす --- */
+            z-index: -1 !important; 
+            pointer-events: none !important;
             align-items: center;
             justify-content: center;
-            pointer-events: none !important;
         }
+
         .send-modal.active, .received-modal.active {
             display: flex !important;
+            /* --- 修正点: 開いている時だけ最前面にする --- */
+            z-index: 9999 !important; 
             pointer-events: auto !important;
         }
         .modal-content {
@@ -657,7 +658,7 @@
         const https = require('https');
         
         const VERSION_INFO = {
-            version: '1.0.7',
+            version: '1.0.8',
             changelog: [
                 '✅ IPMessenger風の自動デバイス検出',
                 '✅ PC名の自由編集＆即時反映',
@@ -1179,16 +1180,27 @@
         
         function closeSendModal() {
             const modal = document.getElementById('sendModal');
-            modal.classList.remove('active');
-            modal.style.display = 'none'; // 【重要】これで物理的に消去する
             
+            // 1. まずモーダルを物理的に消す
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+
+            // 2. 【重要】フォーカスロックを強制解除する「ダミー要素」作戦
+            const dummy = document.createElement('input');
+            dummy.style.position = 'absolute';
+            dummy.style.opacity = '0';
+            document.body.appendChild(dummy);
+            dummy.focus();          // 一旦ダミーにフォーカスを当てる
+            dummy.remove();         // すぐ消す。これでフォーカスが完全にリセットされる
+
+            // 3. データの初期化
             currentSendTarget = null;
             attachedFiles = [];
-            document.getElementById('messageInput').value = ''; // メッセージもクリア
+            document.getElementById('messageInput').value = '';
             updateAttachedFileList();
-            if (document.activeElement) {
-                document.activeElement.blur();
-            }            
+
+            // 4. メイン画面のどこを触っても反応するように戻す
+            window.blur(); 
             window.focus();
         }
         
@@ -1211,8 +1223,7 @@
             // ファイルを送信前に保存（closeSendModalでクリアされるため）
             const filesToSend = [...attachedFiles];
             
-            closeSendModal();
-            
+                       
             try {
                 console.log('📤 メッセージ送信開始:', targetName, {
                     textLength: text.length,
@@ -1241,12 +1252,12 @@
                 hideProgress();
                 console.log('✅ メッセージ送信完了');
                 alert('✅ 送信完了！');
-                closeSendModal(); // 下記の修正版を呼び出す
             } catch (err) {
                 hideProgress();
                 console.error('❌ 送信エラー:', err);
                 alert('❌ 送信エラー: ' + err.message);
             }
+            closeSendModal(); // 下記の修正版を呼び出す
         }
         
         function sendMessageData(targetIP, text, filesData, targetName) {
