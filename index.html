@@ -611,7 +611,7 @@
         const https = require('https');
         
         const VERSION_INFO = {
-            version: '2.3.1',
+            version: '1.0.0',
             changelog: [
                 '✅ IPMessenger風の自動デバイス検出',
                 '✅ PC名の自由編集＆即時反映',
@@ -1122,18 +1122,21 @@
             const targetIP = currentSendTarget.ip;
             const targetName = currentSendTarget.name;
             
+            // ファイルを送信前に保存（closeSendModalでクリアされるため）
+            const filesToSend = [...attachedFiles];
+            
             closeSendModal();
             
             try {
                 console.log('📤 メッセージ送信開始:', targetName, {
                     textLength: text.length,
-                    fileCount: attachedFiles.length
+                    fileCount: filesToSend.length
                 });
                 
                 showProgress('📤 送信中...', `${targetName} にメッセージを送信しています`, 0);
                 
                 const filesData = [];
-                for (const file of attachedFiles) {
+                for (const file of filesToSend) {
                     const data = await readFileAsArrayBuffer(file);
                     filesData.push({
                         name: file.name,
@@ -1146,7 +1149,6 @@
                 await sendMessageData(targetIP, text, filesData, targetName);
                 
                 hideProgress();
-                attachedFiles = [];
                 console.log('✅ メッセージ送信完了');
                 alert('✅ 送信完了！');
             } catch (err) {
