@@ -192,14 +192,20 @@
         
         .send-modal, .received-modal, .modal-overlay {
             display: none !important;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            /* --- 修正点: 閉じている時は最背面に飛ばす --- */
+            z-index: -1 !important; 
+            align-items: center;
+            justify-content: center;
             pointer-events: none !important; /* 表示中以外はクリックを絶対に吸わせない */
-            z-index: -1;
         }
         
         .send-modal.active, .received-modal.active, .modal-overlay.show {
             display: flex !important;
             pointer-events: auto !important;
-            z-index: 9999;
+            z-index: 9999 !important; 
         }
         .modal-content {
             background: white;
@@ -1660,6 +1666,7 @@
     </script>
 </body>
 </html>
+
 
 
 
