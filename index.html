@@ -201,11 +201,11 @@
             z-index: 9999;
             align-items: center;
             justify-content: center;
-            pointer-events: none;
+            pointer-events: none !important;
         }
         .send-modal.active, .received-modal.active {
             display: flex !important;
-            pointer-events: auto;
+            pointer-events: auto !important;
         }
         .modal-content {
             background: white;
@@ -657,7 +657,7 @@
         const https = require('https');
         
         const VERSION_INFO = {
-            version: '1.0.5',
+            version: '1.0.6',
             changelog: [
                 '✅ IPMessenger風の自動デバイス検出',
                 '✅ PC名の自由編集＆即時反映',
@@ -1652,3 +1652,4 @@
     </script>
 </body>
 </html>
+
