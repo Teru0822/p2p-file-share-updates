@@ -246,7 +246,6 @@
             padding: 20px;
             text-align: center;
             margin-bottom: 20px;
-            cursor: pointer;
             transition: all 0.3s;
         }
         .file-attach-section:hover {
@@ -256,6 +255,35 @@
         .file-attach-section.has-files {
             border-color: #10b981;
             background: #f0fdf4;
+        }
+        .attach-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+        .attach-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .attach-btn-file {
+            background: #667eea;
+            color: white;
+        }
+        .attach-btn-file:hover {
+            background: #5568d3;
+        }
+        .attach-btn-folder {
+            background: #10b981;
+            color: white;
+        }
+        .attach-btn-folder:hover {
+            background: #059669;
         }
         .file-list {
             margin-top: 15px;
@@ -269,6 +297,9 @@
             background: white;
             border-radius: 8px;
             margin-bottom: 8px;
+        }
+        .file-item.folder {
+            background: #f0fdf4;
         }
         .file-item-info {
             display: flex;
@@ -569,13 +600,20 @@
             <div class="modal-header" id="sendModalTitle">メッセージ送信</div>
             <textarea id="messageInput" class="message-input" placeholder="メッセージを入力（任意）..."></textarea>
             
-            <div class="file-attach-section" id="fileAttachSection" 
-                 onclick="document.getElementById('attachFileInput').click()"
+            <div class="file-attach-section" id="fileAttachSection"
                  ondragover="handleFileAttachDragOver(event)"
                  ondragleave="handleFileAttachDragLeave(event)"
                  ondrop="handleFileAttachDrop(event)">
-                <div id="fileAttachPlaceholder">
-                    📎 ファイルを添付（クリックまたはドラッグ&ドロップ）
+                <div class="attach-buttons">
+                    <button class="attach-btn attach-btn-file" onclick="document.getElementById('attachFileInput').click()">
+                        📄 ファイルを選択
+                    </button>
+                    <button class="attach-btn attach-btn-folder" onclick="document.getElementById('attachFolderInput').click()">
+                        📁 フォルダを選択
+                    </button>
+                </div>
+                <div id="fileAttachPlaceholder" style="font-size:12px;color:#999;">
+                    またはここにドラッグ&ドロップ
                 </div>
                 <div class="file-list" id="attachedFileList" style="display: none;"></div>
             </div>
@@ -602,6 +640,7 @@
 
     <input type="file" id="fileInput" style="display: none;" multiple>
     <input type="file" id="attachFileInput" style="display: none;" multiple>
+    <input type="file" id="attachFolderInput" style="display: none;" webkitdirectory directory multiple>
 
     <script>
         const { ipcRenderer } = require('electron');
@@ -611,17 +650,18 @@
         const https = require('https');
         
         const VERSION_INFO = {
-            version: '1.0.0',
+            version: '1.0.2',
             changelog: [
                 '✅ IPMessenger風の自動デバイス検出',
                 '✅ PC名の自由編集＆即時反映',
                 '✅ チェックボックスで複数選択送信',
                 '✅ ドラッグ&ドロップでファイル送信',
                 '📤 統合送信ボタン（テキスト+ファイル同時送信）',
+                '📁 フォルダごと送信・受信機能',
+                '💾 フォルダ構造を保持して保存',
                 '📎 複数ファイル添付対応',
                 '🔔 受信時に通知音「ぴこん」',
-                '🔄 自動アップデート機能',
-                '🔧 開発者ツール自動表示'
+                '🔄 自動アップデート機能'
             ]
         };
         
@@ -678,6 +718,21 @@
             document.getElementById('attachFileInput').addEventListener('change', (e) => {
                 const files = Array.from(e.target.files);
                 attachedFiles = [...attachedFiles, ...files];
+                updateAttachedFileList();
+                e.target.value = '';
+            });
+            
+            document.getElementById('attachFolderInput').addEventListener('change', (e) => {
+                const files = Array.from(e.target.files);
+                console.log('📁 フォルダ選択:', files.length, '個のファイル');
+                
+                const folderFiles = files.map(file => ({
+                    file: file,
+                    path: (file.webkitRelativePath || file.name).replace(/\\/g, '/'),
+                    isFolder: true
+                }));
+                
+                attachedFiles = [...attachedFiles, ...folderFiles];
                 updateAttachedFileList();
                 e.target.value = '';
             });
@@ -1060,18 +1115,26 @@
             list.style.display = 'block';
             section.classList.add('has-files');
             
-            list.innerHTML = attachedFiles.map((file, index) => `
-                <div class="file-item">
-                    <div class="file-item-info">
-                        <span>📄</span>
-                        <div>
-                            <div style="font-weight:bold;">${file.name}</div>
-                            <div style="font-size:12px;color:#666;">${formatBytes(file.size)}</div>
+            list.innerHTML = attachedFiles.map((item, index) => {
+                const file = item.file || item;
+                const path = item.path || file.name;
+                const isFolder = item.isFolder || false;
+                const icon = isFolder ? '📁' : '📄';
+                const className = isFolder ? 'file-item folder' : 'file-item';
+                
+                return `
+                    <div class="${className}">
+                        <div class="file-item-info">
+                            <span>${icon}</span>
+                            <div>
+                                <div style="font-weight:bold;">${path}</div>
+                                <div style="font-size:12px;color:#666;">${formatBytes(file.size)}</div>
+                            </div>
                         </div>
+                        <button class="file-remove-btn" onclick="removeAttachedFile(${index}); event.stopPropagation();">×</button>
                     </div>
-                    <button class="file-remove-btn" onclick="removeAttachedFile(${index}); event.stopPropagation();">×</button>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
         
         function removeAttachedFile(index) {
@@ -1136,13 +1199,17 @@
                 showProgress('📤 送信中...', `${targetName} にメッセージを送信しています`, 0);
                 
                 const filesData = [];
-                for (const file of filesToSend) {
+                for (const item of filesToSend) {
+                    const file = item.file || item;
+                    const path = item.path || file.name;
                     const data = await readFileAsArrayBuffer(file);
                     filesData.push({
                         name: file.name,
+                        path: path,
                         type: file.type,
                         size: file.size,
-                        data: Array.from(new Uint8Array(data))
+                        data: Array.from(new Uint8Array(data)),
+                        isFolder: item.isFolder || false
                     });
                 }
                 
@@ -1223,13 +1290,7 @@
             console.log('📨 受信メッセージ表示:', {
                 text: text,
                 fromName: fromName,
-                filesCount: files ? files.length : 0,
-                files: files ? files.map(f => ({
-                    name: f.name,
-                    size: f.size,
-                    hasData: !!f.data,
-                    dataLength: f.data ? f.data.length : 0
-                })) : []
+                filesCount: files ? files.length : 0
             });
             
             const modal = document.getElementById('receivedModal');
@@ -1238,22 +1299,67 @@
             
             receivedFilesData = files;
             
+            // フォルダをグループ化
+            const folders = {};
+            const standaloneFiles = [];
+            
+            files.forEach((file, index) => {
+                if (file.path && file.path.includes('/')) {
+                    const parts = file.path.split('/');
+                    const folderName = parts[0];
+                    
+                    if (!folders[folderName]) {
+                        folders[folderName] = [];
+                    }
+                    folders[folderName].push({ file, index });
+                } else {
+                    standaloneFiles.push({ file, index });
+                }
+            });
+            
             const filesContainer = document.getElementById('receivedFiles');
             if (files && files.length > 0) {
+                let html = '';
+                
+                // フォルダ表示
+                Object.keys(folders).forEach(folderName => {
+                    const folderFiles = folders[folderName];
+                    const totalSize = folderFiles.reduce((sum, item) => sum + item.file.size, 0);
+                    
+                    html += `
+                        <div class="received-file-item folder">
+                            <div>
+                                <div style="font-weight:bold;">📁 ${folderName}</div>
+                                <div style="font-size:12px;color:#666;">
+                                    ${folderFiles.length}個のファイル (${formatBytes(totalSize)})
+                                </div>
+                            </div>
+                            <button class="received-file-save-btn" onclick="saveFolderFiles('${folderName}')">
+                                💾 フォルダを保存
+                            </button>
+                        </div>
+                    `;
+                });
+                
+                // 個別ファイル表示
+                standaloneFiles.forEach(({ file, index }) => {
+                    html += `
+                        <div class="received-file-item">
+                            <div>
+                                <div style="font-weight:bold;">📄 ${file.name}</div>
+                                <div style="font-size:12px;color:#666;">${formatBytes(file.size)}</div>
+                            </div>
+                            <button class="received-file-save-btn" onclick="saveReceivedFile(${index})">
+                                💾 保存
+                            </button>
+                        </div>
+                    `;
+                });
+                
                 filesContainer.innerHTML = `
                     <div style="margin-top:15px;padding-top:15px;border-top:1px solid #e5e7eb;">
-                        <div style="font-weight:bold;margin-bottom:10px;">📎 添付ファイル (${files.length})</div>
-                        ${files.map((file, index) => `
-                            <div class="received-file-item">
-                                <div>
-                                    <div style="font-weight:bold;">📄 ${file.name}</div>
-                                    <div style="font-size:12px;color:#666;">${formatBytes(file.size)}</div>
-                                </div>
-                                <button class="received-file-save-btn" onclick="saveReceivedFile(${index})">
-                                    💾 保存
-                                </button>
-                            </div>
-                        `).join('')}
+                        <div style="font-weight:bold;margin-bottom:10px;">📎 添付ファイル</div>
+                        ${html}
                     </div>
                 `;
             } else {
@@ -1279,6 +1385,41 @@
             } catch (err) {
                 console.error('❌ 保存エラー:', err);
                 alert('❌ 保存エラー: ' + err.message);
+            }
+        }
+        
+        async function saveFolderFiles(folderName) {
+            const folderFiles = receivedFilesData.filter(file => 
+                file.path && file.path.startsWith(folderName + '/')
+            );
+            
+            if (folderFiles.length === 0) {
+                alert('フォルダ内にファイルが見つかりません');
+                return;
+            }
+            
+            console.log('📁 フォルダ保存:', folderName, folderFiles.length, '個のファイル');
+            
+            try {
+                const result = await ipcRenderer.invoke('select-folder');
+                if (!result.success) return;
+                
+                const basePath = result.folderPath;
+                let savedCount = 0;
+                
+                for (const file of folderFiles) {
+                    const filePath = `${basePath}/${file.path}`;
+                    
+                    const saveResult = await ipcRenderer.invoke('save-file-to-path', filePath, file.data);
+                    if (saveResult.success) {
+                        savedCount++;
+                    }
+                }
+                
+                alert(`✅ フォルダ保存完了！\n\n保存先: ${basePath}/${folderName}\nファイル数: ${savedCount}/${folderFiles.length}`);
+            } catch (err) {
+                console.error('❌ フォルダ保存エラー:', err);
+                alert('❌ フォルダ保存エラー: ' + err.message);
             }
         }
         
