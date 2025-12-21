@@ -657,7 +657,7 @@
         const https = require('https');
         
         const VERSION_INFO = {
-            version: '1.0.4',
+            version: '1.0.5',
             changelog: [
                 '✅ IPMessenger風の自動デバイス検出',
                 '✅ PC名の自由編集＆即時反映',
@@ -1186,12 +1186,14 @@
             attachedFiles = [];
             document.getElementById('messageInput').value = ''; // メッセージもクリア
             updateAttachedFileList();
-            document.activeElement.blur();
+            if (document.activeElement) {
+                document.activeElement.blur();
+            }            
+            window.focus();
         }
         
         async function sendMessage() {
             const text = document.getElementById('messageInput').value.trim();
-            
             if (!text && attachedFiles.length === 0) {
                 alert('メッセージまたはファイルを指定してください');
                 return;
@@ -1239,6 +1241,7 @@
                 hideProgress();
                 console.log('✅ メッセージ送信完了');
                 alert('✅ 送信完了！');
+                closeSendModal(); // 下記の修正版を呼び出す
             } catch (err) {
                 hideProgress();
                 console.error('❌ 送信エラー:', err);
