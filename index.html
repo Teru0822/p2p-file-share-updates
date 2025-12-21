@@ -437,6 +437,79 @@
             text-align: center;
         }
         .update-banner-close:hover { opacity: 0.7; }
+        /* ファイル添付セクション */
+        .file-attach-section {
+            border: 2px dashed #e5e7eb;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .file-attach-section:hover {
+            border-color: #667eea;
+            background: #f9fafb;
+        }
+        .file-attach-section.has-files {
+            border-color: #10b981;
+            background: #f0fdf4;
+        }
+        .file-list {
+            margin-top: 15px;
+            text-align: left;
+        }
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        .file-item-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+        }
+        .file-remove-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .file-remove-btn:hover {
+            background: #dc2626;
+        }
+        .received-files {
+            margin-top: 15px;
+        }
+        .received-file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            background: #f0f9ff;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        .received-file-save-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .received-file-save-btn:hover {
+            background: #5568d3;
+        }        
     </style>
 </head>
 <body>
@@ -506,20 +579,33 @@
 
     <div id="textModal" class="text-modal">
         <div class="text-modal-content">
-            <div class="text-modal-header" id="textModalTitle">テキスト送信</div>
-            <textarea id="textInput" class="text-input" placeholder="送信するテキストを入力してください..."></textarea>
+            <div class="text-modal-header" id="textModalTitle">メッセージ送信</div>
+            <textarea id="textInput" class="text-input" placeholder="メッセージを入力（任意）..."></textarea>
+            
+            <div class="file-attach-section" id="fileAttachSection" 
+                 onclick="document.getElementById('textFileInput').click()"
+                 ondragover="handleFileAttachDragOver(event)"
+                 ondragleave="handleFileAttachDragLeave(event)"
+                 ondrop="handleFileAttachDrop(event)">
+                <div id="fileAttachPlaceholder">
+                    📎 ファイルを添付（クリックまたはドラッグ&ドロップ）
+                </div>
+                <div class="file-list" id="attachedFileList" style="display: none;"></div>
+            </div>
+            
             <div class="text-modal-buttons">
                 <button class="text-modal-btn cancel" onclick="closeTextModal()">キャンセル</button>
-                <button class="text-modal-btn send" onclick="sendText()">送信</button>
+                <button class="text-modal-btn send" onclick="sendTextWithFiles()">送信</button>
             </div>
         </div>
     </div>
 
     <div id="receivedTextModal" class="received-text-modal">
         <div class="received-text-content">
-            <div class="received-text-header">📨 テキスト受信</div>
+            <div class="received-text-header">📨 メッセージ受信</div>
             <div class="received-text-from" id="receivedTextFrom">From: </div>
             <div class="received-text-body" id="receivedTextBody"></div>
+            <div class="received-files" id="receivedFiles"></div>
             <div class="received-text-buttons">
                 <button class="text-modal-btn cancel" onclick="closeReceivedTextModal()">閉じる</button>
                 <button class="text-modal-btn send" onclick="copyReceivedText()">📋 コピー</button>
@@ -527,7 +613,7 @@
         </div>
     </div>
 
-    <input type="file" id="fileInput" style="display: none;" multiple>
+    <input type="file" id="textFileInput" style="display: none;" multiple>
 
     <script>
         const { ipcRenderer } = require('electron');
@@ -1272,3 +1358,4 @@
     </script>
 </body>
 </html>
+
