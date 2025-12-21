@@ -201,9 +201,11 @@
             z-index: 9999;
             align-items: center;
             justify-content: center;
+            pointer-events: none;
         }
         .send-modal.active, .received-modal.active {
             display: flex;
+            pointer-events: auto;
         }
         .modal-content {
             background: white;
@@ -655,7 +657,7 @@
         const https = require('https');
         
         const VERSION_INFO = {
-            version: '1.0.3',
+            version: '1.0.4',
             changelog: [
                 '✅ IPMessenger風の自動デバイス検出',
                 '✅ PC名の自由編集＆即時反映',
@@ -1159,17 +1161,30 @@
         function openSendModal(targetIP, targetName) {
             currentSendTarget = { ip: targetIP, name: targetName };
             document.getElementById('sendModalTitle').textContent = `${targetName} へ送信`;
+            
+            const modal = document.getElementById('sendModal');
+            // --- 修正点: displayを強制的にflexにする ---
+            modal.style.display = 'flex'; 
+            modal.classList.add('active');
+            
             document.getElementById('messageInput').value = '';
             attachedFiles = [];
             updateAttachedFileList();
-            document.getElementById('sendModal').classList.add('active');
-            document.getElementById('messageInput').focus();
+            
+            // モーダルが表示されてからフォーカスを当てる
+            setTimeout(() => {
+                document.getElementById('messageInput').focus();
+            }, 10);
         }
         
         function closeSendModal() {
-            document.getElementById('sendModal').classList.remove('active');
+            const modal = document.getElementById('sendModal');
+            modal.classList.remove('active');
+            modal.style.display = 'none'; // 【重要】これで物理的に消去する
+            
             currentSendTarget = null;
             attachedFiles = [];
+            document.getElementById('messageInput').value = ''; // メッセージもクリア
             updateAttachedFileList();
         }
         
