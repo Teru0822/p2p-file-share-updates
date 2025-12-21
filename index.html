@@ -446,7 +446,7 @@
             justify-content: center;
             align-items: center;
             z-index: 3000;
-            pointer-events: none; /* 追加：非表示の時はクリックを透過させる */
+            pointer-events: none; /* 追加：非表示の時��クリックを透過させる */
         }
 
         .modal-overlay.show {
@@ -658,7 +658,7 @@
         const https = require('https');
         
         const VERSION_INFO = {
-            version: '1.0.9',
+            version: '1.1.0',
             changelog: [
                 '✅ IPMessenger風の自動デバイス検出',
                 '✅ PC名の自由編集＆即時反映',
@@ -745,8 +745,19 @@
                 e.target.value = '';
             });
             
+            // --- アップデートチェックの修正箇所 ---
+            // 1. 起動5秒後に1回チェック
             setTimeout(checkForUpdates, 5000);
-            setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
+
+            // 2. 10秒(10000ミリ秒)ごとに繰り返し実行
+            setInterval(() => {
+                // すでにアップデートバナーが表示されている場合は、重複してチェックしない
+                if (!document.querySelector('.update-banner')) {
+                    console.log('10秒経過: アップデートを自動チェックします');
+                    checkForUpdates();
+                }
+            }, 10000);
+            // ------------------------------------
         }
         
         function setupBroadcast() {
@@ -1258,6 +1269,7 @@
                 alert('❌ 送信エラー: ' + err.message);
             }
             closeSendModal(); // 下記の修正版を呼び出す
+            document.body.focus();
         }
         
         function sendMessageData(targetIP, text, filesData, targetName) {
@@ -1663,6 +1675,5 @@
     </script>
 </body>
 </html>
-
 
 
