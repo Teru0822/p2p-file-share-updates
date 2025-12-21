@@ -624,7 +624,7 @@
         
         // バージョン情報（このファイルに埋め込み）
         const VERSION_INFO = {
-            version: '2.2.7',
+            version: '2.2.8',
             changelog: [
                 '✅ IPMessenger風の自動デバイス検出',
                 '✅ PC名の自由編集＆即時反映',
@@ -654,6 +654,8 @@
         let transferServer;
         let currentTransfer = null;
         let currentTextTarget = null;
+        let attachedFiles = [];
+        let receivedFilesData = [];
         
         function getLocalIP() {
             const interfaces = os.networkInterfaces();
@@ -691,12 +693,148 @@
             document.getElementById('nameInput').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') saveName();
             });
+
+            // ファイル添付用の入力
+            document.getElementById('textFileInput').addEventListener('change', (e) => {
+                const files = Array.from(e.target.files);
+                attachedFiles = [...attachedFiles, ...files];
+                updateAttachedFileList();
+                e.target.value = ''; // リセット
+            });
             
             // アップデートチェック（起動5秒後）
             setTimeout(checkForUpdates, 5000);
             
             // 定期的なアップデートチェック（6時間ごと）
             setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
+        }
+
+        // ファイル添付関連の関数
+        function handleFileAttachDragOver(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            document.getElementById('fileAttachSection').style.borderColor = '#667eea';
+            document.getElementById('fileAttachSection').style.background = '#f9fafb';
+        }
+        
+        function handleFileAttachDragLeave(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            const section = document.getElementById('fileAttachSection');
+            if (attachedFiles.length > 0) {
+                section.style.borderColor = '#10b981';
+                section.style.background = '#f0fdf4';
+            } else {
+                section.style.borderColor = '#e5e7eb';
+                section.style.background = '';
+            }
+        }
+        
+        function handleFileAttachDrop(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const files = Array.from(event.dataTransfer.files);
+            attachedFiles = [...attachedFiles, ...files];
+            updateAttachedFileList();
+        }
+        
+        function updateAttachedFileList() {
+            const section = document.getElementById('fileAttachSection');
+            const placeholder = document.getElementById('fileAttachPlaceholder');
+            const list = document.getElementById('attachedFileList');
+            
+            if (attachedFiles.length === 0) {
+                placeholder.style.display = 'block';
+                list.style.display = 'none';
+                section.classList.remove('has-files');
+                return;
+            }
+            
+            placeholder.style.display = 'none';
+            list.style.display = 'block';
+            section.classList.add('has-files');
+            
+            list.innerHTML = attachedFiles.map((file, index) => `
+                <div class="file-item">
+                    <div class="file-item-info">
+                        <span>📄</span>
+                        <div>
+                            <div style="font-weight:bold;">${file.name}</div>
+                            <div style="font-size:12px;color:#666;">${formatBytes(file.size)}</div>
+                        </div>
+                    </div>
+                    <button class="file-remove-btn" onclick="removeAttachedFile(${index}); event.stopPropagation();">×</button>
+                </div>
+            `).join('');
+        }
+        
+        function removeAttachedFile(index) {
+            attachedFiles.splice(index, 1);
+            updateAttachedFileList();
+        }
+        
+        // ファイルをArrayBufferとして読み込む
+        function readFileAsArrayBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        function showReceivedTextWithFiles(text, fromName, files) {
+            const modal = document.getElementById('receivedTextModal');
+            document.getElementById('receivedTextFrom').textContent = `From: ${fromName}`;
+            document.getElementById('receivedTextBody').textContent = text || '（メッセージなし）';
+            
+            // ファイルデータを保存
+            receivedFilesData = files;
+            
+            // ファイルリスト表示
+            const filesContainer = document.getElementById('receivedFiles');
+            if (files && files.length > 0) {
+                filesContainer.innerHTML = `
+                    <div style="margin-top:15px;padding-top:15px;border-top:1px solid #e5e7eb;">
+                        <div style="font-weight:bold;margin-bottom:10px;">📎 添付ファイル (${files.length})</div>
+                        ${files.map((file, index) => `
+                            <div class="received-file-item">
+                                <div>
+                                    <div style="font-weight:bold;">📄 ${file.name}</div>
+                                    <div style="font-size:12px;color:#666;">${formatBytes(file.size)}</div>
+                                </div>
+                                <button class="received-file-save-btn" onclick="saveReceivedFile(${index})">
+                                    💾 保存
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                filesContainer.innerHTML = '';
+            }
+            
+            modal.classList.add('active');
+        }
+        
+        async function saveReceivedFile(index) {
+            const file = receivedFilesData[index];
+            if (!file) return;
+            
+            try {
+                console.log('💾 ファイル保存:', file.name);
+                const result = await ipcRenderer.invoke('save-file', file.name, file.data);
+                
+                if (result.success) {
+                    alert(`✅ 保存完了！\n\n${result.filePath}`);
+                } else {
+                    alert('❌ 保存に失敗しました');
+                }
+            } catch (err) {
+                console.error('❌ 保存エラー:', err);
+                alert('❌ 保存エラー: ' + err.message);
+            }
         }
         
         function setupBroadcast() {
@@ -762,6 +900,23 @@
                                 showReceivedText(fileInfo.text, fileInfo.from);
                                 
                                 // 接続を正常終了
+                                socket.end();
+                                return;
+                            }
+
+                            // テキスト+ファイルメッセージの判定
+                            if (fileInfo.type === 'text_with_files') {
+                                isTextMessage = true;
+                                expectedSize = 0;
+                                
+                                console.log('💬 テキスト+ファイル受信:', {
+                                    from: fileInfo.from,
+                                    textLength: fileInfo.text ? fileInfo.text.length : 0,
+                                    fileCount: fileInfo.fileCount
+                                });
+                                
+                                playNotificationSound();
+                                showReceivedTextWithFiles(fileInfo.text, fileInfo.from, fileInfo.files || []);
                                 socket.end();
                                 return;
                             }
@@ -1132,10 +1287,125 @@
             modal.classList.add('active');
             document.getElementById('textInput').focus();
         }
+
+        async function sendTextWithFiles() {
+            const text = document.getElementById('textInput').value.trim();
+            
+            // テキストもファイルもない場合はエラー
+            if (!text && attachedFiles.length === 0) {
+                alert('テキストまたはファイルを指定してください');
+                return;
+            }
+            
+            if (!currentTextTarget) {
+                alert('送信先が選択されていません');
+                closeTextModal();
+                return;
+            }
+            
+            const targetIP = currentTextTarget.ip;
+            const targetName = currentTextTarget.name;
+            
+            closeTextModal();
+            
+            try {
+                console.log('💬 メッセージ送信開始:', targetName, {
+                    textLength: text.length,
+                    fileCount: attachedFiles.length
+                });
+                
+                showProgress('📤 送信中...', `${targetName} にメッセージを送信しています`, 0);
+                
+                // ファイルデータを読み込み
+                const filesData = [];
+                for (const file of attachedFiles) {
+                    const data = await readFileAsArrayBuffer(file);
+                    filesData.push({
+                        name: file.name,
+                        type: file.type,
+                        size: file.size,
+                        data: Array.from(new Uint8Array(data))
+                    });
+                }
+                
+                // 送信
+                await sendTextAndFilesData(targetIP, text, filesData, targetName);
+                
+                hideProgress();
+                attachedFiles = [];
+                console.log('✅ メッセージ送信完了');
+                alert('✅ 送信完了！');
+            } catch (err) {
+                hideProgress();
+                console.error('❌ 送信エラー:', err);
+                alert('❌ 送信エラー: ' + err.message);
+            }
+        }
+        
+        function sendTextAndFilesData(targetIP, text, filesData, targetName) {
+            return new Promise((resolve, reject) => {
+                const client = new net.Socket();
+                let connected = false;
+                
+                const timeout = setTimeout(() => {
+                    if (!connected) {
+                        client.destroy();
+                        reject(new Error('接続タイムアウト'));
+                    }
+                }, 10000);
+                
+                client.connect(TRANSFER_PORT, targetIP, () => {
+                    connected = true;
+                    clearTimeout(timeout);
+                    
+                    console.log('🔗 接続成功:', targetIP);
+                    
+                    const metadata = {
+                        type: 'text_with_files',
+                        text: text,
+                        from: myName,
+                        timestamp: Date.now(),
+                        fileCount: filesData.length,
+                        files: filesData
+                    };
+                    
+                    const headerBuffer = Buffer.from(JSON.stringify(metadata), 'utf8');
+                    const headerSize = Buffer.alloc(4);
+                    headerSize.writeUInt32BE(headerBuffer.length, 0);
+                    
+                    console.log('📤 データ送信:', {
+                        textLength: text.length,
+                        fileCount: filesData.length,
+                        headerSize: headerBuffer.length
+                    });
+                    
+                    client.write(headerSize);
+                    client.write(headerBuffer, () => {
+                        console.log('✅ 書き込み完了');
+                        setTimeout(() => {
+                            client.end();
+                        }, 100);
+                    });
+                });
+                
+                client.on('end', () => {
+                    console.log('🔌 接続終了');
+                    resolve();
+                });
+                
+                client.on('error', (err) => {
+                    console.error('❌ 接続エラー:', err);
+                    clearTimeout(timeout);
+                    reject(err);
+                });
+            });
+        }
         
         function closeTextModal() {
             document.getElementById('textModal').classList.remove('active');
             currentTextTarget = null;
+            attachedFiles = []; // ファイルリストをクリア
+            updateAttachedFileList(); // UI更新
         }
         
         async function sendText() {
@@ -1358,4 +1628,5 @@
     </script>
 </body>
 </html>
+
 
