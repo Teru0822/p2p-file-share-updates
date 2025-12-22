@@ -535,6 +535,30 @@
             text-align: center;
         }
         .update-banner-close:hover { opacity: 0.7; }
+        
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #22c55e;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            z-index: 5000;
+            animation: slideInUp 0.3s, fadeOut 0.3s 2.7s;
+            display: none;
+        }
+        .toast.show { display: block; }
+        .toast.error { background: #ef4444; }
+        @keyframes slideInUp {
+            from { transform: translateY(100px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
     </style>
 </head>
 <body>
@@ -649,6 +673,8 @@
     <input type="file" id="attachFileInput" style="display: none;" multiple>
     <input type="file" id="attachFolderInput" style="display: none;" webkitdirectory directory multiple>
 
+    <div id="toast" class="toast"></div>
+
     <script>
         const { ipcRenderer } = require('electron');
         const os = require('os');
@@ -657,7 +683,7 @@
         const https = require('https');
         
         const VERSION_INFO = {
-            version: '1.1.1',
+            version: '1.1.2',
             changelog: [
                 '✅ IPMessenger風の自動デバイス検出',
                 '✅ PC名の自由編集＆即時反映',
@@ -1209,12 +1235,12 @@
         async function sendMessage() {
             const text = document.getElementById('messageInput').value.trim();
             if (!text && attachedFiles.length === 0) {
-                alert('メッセージまたはファイルを指定してください');
+                showToast('メッセージまたはファイルを指定してください', true);
                 return;
             }
             
             if (!currentSendTarget) {
-                alert('送信先が選択されていません');
+                showToast('送信先が選択されていません', true);
                 closeSendModal();
                 return;
             }
@@ -1222,13 +1248,18 @@
             const targetIP = currentSendTarget.ip;
             const targetName = currentSendTarget.name;
             
-            // ファイルを送信前に保存（closeSendModalでクリアされるため）
+            // ファイルを送信前に保存（クリアされるため）
             const filesToSend = [...attachedFiles];
+            const textToSend = text;
             
+            // 送信前に入力内容をクリア（連続送信可能にするため）
+            document.getElementById('messageInput').value = '';
+            attachedFiles = [];
+            updateAttachedFileList();
                        
             try {
                 console.log('📤 メッセージ送信開始:', targetName, {
-                    textLength: text.length,
+                    textLength: textToSend.length,
                     fileCount: filesToSend.length
                 });
                 
@@ -1249,18 +1280,25 @@
                     });
                 }
                 
-                await sendMessageData(targetIP, text, filesData, targetName);
+                await sendMessageData(targetIP, textToSend, filesData, targetName);
                 
                 hideProgress();
                 console.log('✅ メッセージ送信完了');
-                alert('✅ 送信完了！');
+                
+                // 送信完了トースト表示
+                showToast(`✅ ${targetName} に送信完了`);
+                
+                // 送信完了後、入力欄にフォーカスを戻す
+                document.getElementById('messageInput').focus();
+                
             } catch (err) {
                 hideProgress();
                 console.error('❌ 送信エラー:', err);
-                alert('❌ 送信エラー: ' + err.message);
+                showToast('❌ 送信エラー: ' + err.message, true);
+                
+                // エラー時も入力欄にフォーカス
+                document.getElementById('messageInput').focus();
             }
-            closeSendModal(); // 下記の修正版を呼び出す
-            document.body.focus();
         }
         
         function sendMessageData(targetIP, text, filesData, targetName) {
@@ -1527,6 +1565,16 @@
             oscillator.stop(audioContext.currentTime + 0.2);
         }
         
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show' + (isError ? ' error' : '');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+        
         function openNameModal() {
             document.getElementById('nameInput').value = myName;
             const modal = document.getElementById('nameModal');
@@ -1666,7 +1714,3 @@
     </script>
 </body>
 </html>
-
-
-
-
