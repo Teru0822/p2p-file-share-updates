@@ -566,7 +566,7 @@
         <div class="card">
             <div class="header">
                 <div>
-                    <div class="title">📡 P2Pファイル <span style="font-size:16px;color:#999;">v1.1.4</span></div>
+                    <div class="title">📡 P2Pファイル共有 <span style="font-size:16px;color:#999;">v2.4.0</span></div>
                     <div class="subtitle" id="statusText">待機中...</div>
                 </div>
                 <div class="status">
@@ -676,14 +676,16 @@
     <div id="toast" class="toast"></div>
 
     <script>
-        const { ipcRenderer } = require('electron');
-        const os = require('os');
-        const dgram = require('dgram');
-        const net = require('net');
-        const https = require('https');
+        // ============================================================================
+        // バージョン設定（ここでバージョン番号を一括管理）
+        // ============================================================================
+        const APP_VERSION = '1.0.0';
+        const APP_NAME = 'P2Pファイル共有';
+        const APP_NAME_ENGLISH = 'P2P File Share';
         
+        // バージョン履歴・変更ログ
         const VERSION_INFO = {
-            version: '1.1.5',
+            version: APP_VERSION,
             changelog: [
                 '✅ IPMessenger風の自動デバイス検出',
                 '✅ PC名の自由編集＆即時反映',
@@ -692,18 +694,34 @@
                 '📤 統合送信ボタン（テキスト+ファイル同時送信）',
                 '📁 フォルダごと送信・受信機能',
                 '💾 フォルダ構造を保持して保存',
-                '📎 複数ファイル添付対応',
+                '📎 名前にD&D→送信モーダル（NEW!）',
                 '🔔 デスクトップ通知（バックグラウンドでも通知）',
                 '🔄 連続送信対応・トースト通知',
                 '🔄 自動アップデート機能'
             ]
         };
         
-        const CURRENT_VERSION = VERSION_INFO.version;
-        const BROADCAST_PORT = 45678;
-        const TRANSFER_PORT = 45679;
-        const BROADCAST_INTERVAL = 3000;
-        const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000;
+        // アップデートチェック用URL
+        const UPDATE_CHECK_URL = 'https://Teru0822.github.io/p2p-file-share-updates/index.html';
+        
+        // ============================================================================
+        // ネットワーク設定
+        // ============================================================================
+        const BROADCAST_PORT = 45678;      // ブロードキャスト用ポート
+        const TRANSFER_PORT = 45679;       // ファイル転送用ポート
+        const BROADCAST_INTERVAL = 3000;   // ブロードキャスト間隔（ミリ秒）
+        const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000; // アップデートチェック間隔（6時間）
+        
+        // ============================================================================
+        // システム初期化
+        // ============================================================================
+        const { ipcRenderer } = require('electron');
+        const os = require('os');
+        const dgram = require('dgram');
+        const net = require('net');
+        const https = require('https');
+        
+        const CURRENT_VERSION = APP_VERSION;
         
         let myName = localStorage.getItem('p2p_pc_name') || os.hostname() || 'Unknown PC';
         let myIP = getLocalIP();
@@ -737,6 +755,13 @@
             console.log('='.repeat(70));
             
             localStorage.setItem('app_version', CURRENT_VERSION);
+            
+            // タイトルとバージョン表示を動的に設定
+            document.title = `${APP_NAME} v${APP_VERSION}`;
+            const titleElement = document.querySelector('.title');
+            if (titleElement) {
+                titleElement.innerHTML = `📡 ${APP_NAME} <span style="font-size:16px;color:#999;">v${APP_VERSION}</span>`;
+            }
             
             document.getElementById('myName').textContent = myName;
             document.getElementById('statusText').textContent = `待機中 (${myIP})`;
@@ -1110,16 +1135,127 @@
             event.stopPropagation();
             document.getElementById('peer-' + ip.replace(/\./g, '-')).classList.remove('drag-over');
             
+            const peer = discoveredPeers.get(ip);
+            if (!peer) return;
+            
+            // ドロップされたアイテムを処理
             const items = event.dataTransfer.items;
-            const files = [];
+            const droppedFiles = [];
+            
             if (items) {
+                // DataTransferItemListを使用（フォルダ対応）
+                const promises = [];
+                
                 for (let i = 0; i < items.length; i++) {
-                    if (items[i].kind === 'file') {
-                        files.push(items[i].getAsFile());
+                    const item = items[i];
+                    if (item.kind === 'file') {
+                        const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+                        
+                        if (entry) {
+                            if (entry.isDirectory) {
+                                // フォルダの場合
+                                promises.push(readDirectoryEntries(entry, entry.name));
+                            } else {
+                                // ファイルの場合
+                                const file = item.getAsFile();
+                                droppedFiles.push({
+                                    file: file,
+                                    path: file.name,
+                                    isFolder: false
+                                });
+                            }
+                        }
                     }
                 }
+                
+                // すべてのフォルダ読み込みが完了してから処理
+                Promise.all(promises).then(folderFilesArrays => {
+                    // フォルダ内のファイルを統合
+                    folderFilesArrays.forEach(folderFiles => {
+                        droppedFiles.push(...folderFiles);
+                    });
+                    
+                    // 送信モーダルを開く
+                    openSendModalWithFiles(ip, peer.name, droppedFiles);
+                });
+                
+            } else {
+                // 古いブラウザ用のフォールバック
+                const files = Array.from(event.dataTransfer.files);
+                const fileItems = files.map(file => ({
+                    file: file,
+                    path: file.name,
+                    isFolder: false
+                }));
+                openSendModalWithFiles(ip, peer.name, fileItems);
             }
-            if (files.length > 0) sendFilesToMultiple([ip], files);
+        }
+        
+        // フォルダ内のファイルを再帰的に読み込む
+        function readDirectoryEntries(directoryEntry, basePath = '') {
+            return new Promise((resolve) => {
+                const dirReader = directoryEntry.createReader();
+                const allFiles = [];
+                
+                function readEntries() {
+                    dirReader.readEntries((entries) => {
+                        if (entries.length === 0) {
+                            resolve(allFiles);
+                            return;
+                        }
+                        
+                        const promises = [];
+                        entries.forEach(entry => {
+                            if (entry.isFile) {
+                                promises.push(new Promise((resolveFile) => {
+                                    entry.file(file => {
+                                        allFiles.push({
+                                            file: file,
+                                            path: basePath + '/' + entry.name,
+                                            isFolder: true
+                                        });
+                                        resolveFile();
+                                    });
+                                }));
+                            } else if (entry.isDirectory) {
+                                promises.push(
+                                    readDirectoryEntries(entry, basePath + '/' + entry.name)
+                                        .then(subFiles => {
+                                            allFiles.push(...subFiles);
+                                        })
+                                );
+                            }
+                        });
+                        
+                        Promise.all(promises).then(() => {
+                            readEntries(); // 次のバッチを読み込む
+                        });
+                    });
+                }
+                
+                readEntries();
+            });
+        }
+        
+        // ファイル付きで送信モーダルを開く
+        function openSendModalWithFiles(ip, name, files) {
+            // 送信先を設定
+            currentSendTarget = { ip: ip, name: name };
+            
+            // ファイルを添付
+            attachedFiles = [...files];
+            updateAttachedFileList();
+            
+            // モーダルを開く
+            const modal = document.getElementById('sendModal');
+            const modalTitle = document.getElementById('sendModalTitle');
+            modalTitle.textContent = `📤 ${name} に送信`;
+            modal.classList.add('active');
+            
+            // テキスト入力欄にフォーカス
+            document.getElementById('messageInput').focus();
+            
+            console.log('📁 ドロップされたファイル:', files.length, '個');
         }
         
         function handleFileAttachDragOver(event) {
@@ -1670,11 +1806,9 @@
         }
         
         function checkForUpdates() {
-            const updateUrl = 'https://Teru0822.github.io/p2p-file-share-updates/index.html';
-            
             console.log('🔍 アップデートチェック開始...');
             
-            https.get(updateUrl, (res) => {
+            https.get(UPDATE_CHECK_URL, (res) => {
                 let data = '';
                 res.on('data', (chunk) => { data += chunk; });
                 res.on('end', () => {
@@ -1727,7 +1861,6 @@
         }
         
         async function applyUpdate(versionInfo) {
-            const updateUrl = 'https://Teru0822.github.io/p2p-file-share-updates/index.html';
             const banner = document.querySelector('.update-banner');
             if (banner) banner.remove();
             
@@ -1735,7 +1868,7 @@
             showProgress('⬇️ アップデート中...', 'index.htmlをダウンロードしています', 0);
             
             try {
-                const result = await ipcRenderer.invoke('download-update', updateUrl, versionInfo.version);
+                const result = await ipcRenderer.invoke('download-update', UPDATE_CHECK_URL, versionInfo.version);
                 hideProgress();
                 
                 if (result.success) {
@@ -1777,5 +1910,3 @@
     </script>
 </body>
 </html>
-
-
