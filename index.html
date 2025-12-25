@@ -679,7 +679,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.0.9';
+        const APP_VERSION = '1.0.10';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -1664,6 +1664,18 @@
                     if (item.isFolder) {
                         // フォルダを一括送信
                         console.log(`📁 フォルダ送信 (${i + 1}/${itemsToSend.length}):`, item.name);
+                        console.log('📁 フォルダ詳細:', {
+                            name: item.name,
+                            fileCount: item.files ? item.files.length : 0,
+                            isFolder: item.isFolder
+                        });
+                        
+                        if (!item.files || item.files.length === 0) {
+                            console.error('❌ フォルダにファイルがありません:', item);
+                            showToast('❌ フォルダが空です', true);
+                            continue;
+                        }
+                        
                         await sendFolder(targetIP, item);
                     } else {
                         // 通常ファイルを送信
