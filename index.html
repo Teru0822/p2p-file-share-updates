@@ -679,7 +679,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.1.6';
+        const APP_VERSION = '1.1.7';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -865,6 +865,7 @@
                 let currentStream = null;
                 let remaining = 0;
                 let folderData = null;
+                let singleFileData = null;  // 単独ファイル用
                 
                 socket.on('data', (data) => {
                     buffer = Buffer.concat([buffer, data]);
@@ -880,7 +881,16 @@
                             // プログレス更新
                             if (folderData) {
                                 folderData.received += chunk.length;
+                                if (folderData.received % (1024 * 1024) < chunk.length || remaining === 0) {
+                                    console.log('📊 フォルダ進捗:', folderData.received, '/', folderData.totalExpected);
+                                }
                                 updateProgress(folderData.received, folderData.totalExpected, folderData.totalExpected);
+                            } else if (singleFileData) {
+                                singleFileData.received += chunk.length;
+                                if (singleFileData.received % (1024 * 1024) < chunk.length || remaining === 0) {
+                                    console.log('📊 ファイル進捗:', singleFileData.received, '/', singleFileData.size);
+                                }
+                                updateProgress(singleFileData.received, singleFileData.size, singleFileData.size);
                             }
                             
                             if (remaining === 0) {
@@ -896,6 +906,11 @@
                                         showToast(`✅ フォルダ受信完了: ${folderData.name}`);
                                         alert(`✅ フォルダ受信完了！\n\n保存先: ${saveRoot}`);
                                     }
+                                } else if (singleFileData) {
+                                    hideProgress();
+                                    playNotificationSound();
+                                    showToast('✅ ファイル受信完了');
+                                    singleFileData = null;
                                 }
                             }
                             continue;
@@ -965,7 +980,13 @@
                                     
                                     currentStream = fs.createWriteStream(result.filePath);
                                     remaining = packet.size;
+                                    singleFileData = {
+                                        name: packet.name,
+                                        size: packet.size,
+                                        received: 0
+                                    };
                                     
+                                    console.log('📄 単独ファイル受信開始:', packet.name, packet.size, 'bytes');
                                     showProgress('📥 受信中...', packet.name, packet.size);
                                     socket.write('READY');
                                 });
@@ -979,6 +1000,9 @@
                                 folderData.totalExpected += packet.size;
                                 
                                 console.log('📄 ファイル開始:', packet.name, packet.size, 'bytes');
+                                
+                                // ✅ READY送信（参考コードと同じ）
+                                socket.write('READY');
                             }
                         }
                     }
@@ -1007,15 +1031,22 @@
         
         // パケットデコード
         function decodePacket(buffer) {
-            if (buffer.length < 4) return null;
+            if (buffer.length < 4) {
+                console.log('🔍 decodePacket: バッファ不足 (', buffer.length, '< 4)');
+                return null;
+            }
             
             const size = buffer.readUInt32BE(0);
-            if (buffer.length < 4 + size) return null;
+            if (buffer.length < 4 + size) {
+                console.log('🔍 decodePacket: パケット不完全 (必要:', 4 + size, ', 現在:', buffer.length, ')');
+                return null;
+            }
             
             const json = buffer.slice(4, 4 + size).toString('utf8');
             const packet = JSON.parse(json);
             const rest = buffer.slice(4 + size);
             
+            console.log('✅ decodePacket成功:', packet.type, packet.name || '', '残りバッファ:', rest.length);
             return { packet, rest };
         }
         function startBroadcasting() {
@@ -1177,48 +1208,59 @@
         }
         
         function sendFileData(targetIP, file, callback) {
-            const client = net.createConnection({ 
-                port: TRANSFER_PORT, 
-                host: targetIP,
-                keepAlive: true,
-                noDelay: true
-            }, async () => {
-                console.log('📤 ファイル送信開始:', targetIP, file.name);
-                showProgress('📤 送信中...', file.name, file.size);
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const fileData = Buffer.from(e.target.result);
+                const fileInfo = { name: file.name, type: file.type, size: file.size };
                 
-                try {
-                    const fileInfo = {
-                        type: 'file',
-                        name: file.name,
-                        size: file.size
-                    };
+                const client = net.createConnection({ port: TRANSFER_PORT, host: targetIP }, () => {
+                    console.log('📤 ファイル送信開始:', targetIP, file.name);
+                    showProgress('📤 送信中...', file.name, file.size);
                     
-                    client.write(encodePacket(fileInfo));
-                    await waitReady(client);
+                    const headerJSON = JSON.stringify(fileInfo);
+                    const headerBuffer = Buffer.from(headerJSON, 'utf8');
+                    const headerSize = Buffer.alloc(4);
+                    headerSize.writeUInt32BE(headerBuffer.length, 0);
                     
-                    await streamFileFromBrowser(client, file, (sent) => {
-                        updateProgress(sent, file.size, file.size);
-                    });
+                    client.write(headerSize);
+                    client.write(headerBuffer);
                     
-                    client.end();
-                    hideProgress();
-                    console.log('✅ ファイル送信完了:', file.name);
-                    if (!callback) alert(`✅ 送信完了！\n\nファイル: ${file.name}`);
-                    if (callback) callback();
+                    const CHUNK_SIZE = 64 * 1024;
+                    let offset = 0;
                     
-                } catch (err) {
+                    function sendChunk() {
+                        if (currentTransfer && currentTransfer.cancelled) {
+                            client.end();
+                            hideProgress();
+                            if (callback) callback();
+                            return;
+                        }
+                        if (offset >= fileData.length) {
+                            client.end();
+                            hideProgress();
+                            console.log('✅ ファイル送信完了:', file.name);
+                            if (!callback) alert(`✅ 送信完了！\n\nファイル: ${file.name}`);
+                            if (callback) callback();
+                            return;
+                        }
+                        const chunk = fileData.slice(offset, offset + CHUNK_SIZE);
+                        client.write(chunk, () => {
+                            offset += chunk.length;
+                            updateProgress(offset, fileData.length, fileData.length);
+                            setTimeout(sendChunk, 10);
+                        });
+                    }
+                    currentTransfer = { cancelled: false };
+                    sendChunk();
+                });
+                
+                client.on('error', (err) => {
                     console.error('❌ 送信エラー:', err);
-                    client.destroy();
                     hideProgress();
                     if (callback) callback();
-                }
-            });
-            
-            client.on('error', (err) => {
-                console.error('❌ 送信エラー:', err);
-                hideProgress();
-                if (callback) callback();
-            });
+                });
+            };
+            reader.readAsArrayBuffer(file);
         }
         
         function handleDragOver(event, ip) {
@@ -1459,6 +1501,14 @@
             updateAttachedFileList();
         }
         
+        function readFileAsArrayBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
         
         function openSendModal(targetIP, targetName) {
             currentSendTarget = { ip: targetIP, name: targetName };
@@ -1629,15 +1679,20 @@
                                 size: fileItem.file.size
                             };
                             client.write(encodePacket(fileMeta));
+                            console.log('📤 ファイルメタ送信:', fileMeta.name, fileMeta.size);
+                            
+                            // ✅ READY待機（参考コードと同じ）
+                            await waitReady(client);
+                            console.log('✅ ファイル', fileItem.file.name, '準備完了');
                             
                             // ファイルデータをストリーム送信
                             const sent = await streamFileFromBrowser(client, fileItem.file, (progress) => {
-                                totalSent = totalSent - (sent || 0) + progress;
-                                updateProgress(totalSent, totalSize, totalSize);
+                                const currentTotal = totalSent + progress;
+                                updateProgress(currentTotal, totalSize, totalSize);
                             });
                             totalSent += sent;
                             
-                            console.log('✅ ファイル送信完了:', fileItem.file.name);
+                            console.log('✅ ファイル送信完了:', fileItem.file.name, sent, 'bytes');
                         }
                         
                         client.end();
@@ -2260,4 +2315,3 @@
     </script>
 </body>
 </html>
-
