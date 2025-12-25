@@ -679,7 +679,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.1.0';
+        const APP_VERSION = '1.1.1';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -948,6 +948,12 @@
                                         expectedSize = fileInfo.size;
                                         receivedSize = 0;
                                         
+                                        // フォルダ全体の期待サイズを累積
+                                        if (!folderData.totalExpected) {
+                                            folderData.totalExpected = 0;
+                                        }
+                                        folderData.totalExpected += expectedSize;
+                                        
                                         const fullPath = `${folderSavePath}/${fileInfo.path}`.replace(/\\/g, '/');
                                         const fileDir = fullPath.substring(0, fullPath.lastIndexOf('/'));
                                         if (fileDir !== folderSavePath) {
@@ -1012,9 +1018,11 @@
                                 // プログレス更新
                                 if (isFolder) {
                                     const totalReceived = folderData.totalSize + receivedSize;
-                                    const totalExpected = folderData.totalSize + expectedSize;
+                                    const totalExpected = folderData.totalExpected || 1;
+                                    console.log('📊 フォルダ進捗:', totalReceived, '/', totalExpected, '=', Math.round((totalReceived / totalExpected) * 100) + '%');
                                     updateProgress(totalReceived, totalExpected, totalExpected);
                                 } else {
+                                    console.log('📊 ファイル進捗:', receivedSize, '/', expectedSize, '=', Math.round((receivedSize / expectedSize) * 100) + '%');
                                     updateProgress(receivedSize, expectedSize, expectedSize);
                                 }
                                 
