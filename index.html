@@ -390,7 +390,7 @@
             display: none;
             justify-content: center;
             align-items: center;
-            z-index: 2000;
+            z-index: 10000;
         }
         .progress-overlay.show { display: flex; }
         .progress-box {
@@ -679,7 +679,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.0.1';
+        const APP_VERSION = '1.0.2';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -1400,6 +1400,9 @@
             document.getElementById('messageInput').value = '';
             attachedFiles = [];
             updateAttachedFileList();
+            
+            // モーダルを閉じる（プログレスバーを見やすくする）
+            closeSendModal();
                        
             try {
                 console.log('📤 メッセージ送信開始:', targetName, {
@@ -1432,16 +1435,10 @@
                 // 送信完了トースト表示
                 showToast(`✅ ${targetName} に送信完了`);
                 
-                // 送信完了後、入力欄にフォーカスを戻す
-                document.getElementById('messageInput').focus();
-                
             } catch (err) {
                 hideProgress();
                 console.error('❌ 送信エラー:', err);
                 showToast('❌ 送信エラー: ' + err.message, true);
-                
-                // エラー時も入力欄にフォーカス
-                document.getElementById('messageInput').focus();
             }
         }
         
@@ -1938,5 +1935,3 @@
     </script>
 </body>
 </html>
-
-
