@@ -679,7 +679,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.0.4';
+        const APP_VERSION = '1.0.5';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -709,8 +709,11 @@
         // ============================================================================
         const BROADCAST_PORT = 45678;      // ブロードキャスト用ポート
         const TRANSFER_PORT = 45679;       // ファイル転送用ポート
-        const BROADCAST_INTERVAL = 3000;   // ブロードキャスト間隔（ミリ秒）
+        const BROADCAST_INTERVAL = 1000;   // ブロードキャスト間隔（1秒に短縮）
+        const PEER_TIMEOUT = 5000;         // ピアタイムアウト（5秒）
         const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000; // アップデートチェック間隔（6時間）
+        const CHUNK_SIZE = 256 * 1024;     // 転送チャンクサイズ（256KB に増加）
+        const CHUNK_DELAY = 0;             // チャンク間遅延なし
         
         // ============================================================================
         // システム初期化
@@ -733,6 +736,7 @@
         let currentSendTarget = null;
         let attachedFiles = [];
         let receivedFilesData = [];
+        let peerTimeouts = new Map(); // ピアタイムアウト管理
         
         function getLocalIP() {
             const interfaces = os.networkInterfaces();
@@ -844,6 +848,10 @@
         
         function setupTransferServer() {
             transferServer = net.createServer((socket) => {
+                // TCP最適化設定
+                socket.setKeepAlive(true);
+                socket.setNoDelay(true);  // Nagleアルゴリズムを無効化
+                
                 let receivedData = Buffer.alloc(0);
                 let fileInfo = null;
                 let expectedSize = 0;
@@ -1052,25 +1060,38 @@
         }
         
         function addPeer(name, ip) {
+            const now = Date.now();
             discoveredPeers.set(ip, {
                 name: name,
                 ip: ip,
-                lastSeen: Date.now()
+                lastSeen: now
             });
+            
+            // タイムアウトをリセット
+            if (peerTimeouts.has(ip)) {
+                clearTimeout(peerTimeouts.get(ip));
+            }
+            
+            // 新しいタイムアウトを設定
+            const timeout = setTimeout(() => {
+                removePeer(ip);
+            }, PEER_TIMEOUT);
+            
+            peerTimeouts.set(ip, timeout);
+            updatePeerList();
+        }
+        
+        function removePeer(ip) {
+            discoveredPeers.delete(ip);
+            selectedPeers.delete(ip);
+            if (peerTimeouts.has(ip)) {
+                clearTimeout(peerTimeouts.get(ip));
+                peerTimeouts.delete(ip);
+            }
             updatePeerList();
         }
         
         function updatePeerList() {
-            const now = Date.now();
-            const TIMEOUT = 10000;
-            
-            for (const [ip, peer] of discoveredPeers) {
-                if (now - peer.lastSeen > TIMEOUT) {
-                    discoveredPeers.delete(ip);
-                    selectedPeers.delete(ip);
-                }
-            }
-            
             const peers = Array.from(discoveredPeers.values());
             document.getElementById('peerCount').textContent = peers.length;
             
@@ -1609,7 +1630,12 @@
         // フォルダを一括送信する関数
         async function sendFolder(targetIP, folderItem) {
             return new Promise((resolve, reject) => {
-                const client = net.createConnection({ port: TRANSFER_PORT, host: targetIP }, async () => {
+                const client = net.createConnection({ 
+                    port: TRANSFER_PORT, 
+                    host: targetIP,
+                    keepAlive: true,
+                    noDelay: true  // TCP最適化
+                }, async () => {
                     console.log('📁 フォルダ送信開始:', targetIP, folderItem.name);
                     showProgress('📤 送信中...', folderItem.name, 0);
                     
@@ -1631,7 +1657,7 @@
                         client.write(headerBuffer);
                         
                         // 少し待つ
-                        await new Promise(r => setTimeout(r, 100));
+                        await new Promise(r => setTimeout(r, 50));
                         
                         // 各ファイルの情報とデータを送信
                         let totalSent = 0;
@@ -1659,18 +1685,17 @@
                             client.write(fileHeaderSize);
                             client.write(fileHeaderBuffer);
                             
-                            // データ送信
-                            const CHUNK_SIZE = 64 * 1024;
+                            // データ送信（高速化）
                             for (let offset = 0; offset < fileData.length; offset += CHUNK_SIZE) {
                                 const chunk = fileData.slice(offset, offset + CHUNK_SIZE);
-                                await new Promise((resolveChunk) => {
-                                    client.write(chunk, () => {
-                                        totalSent += chunk.length;
-                                        updateProgress(totalSent, totalSize, totalSize);
-                                        resolveChunk();
-                                    });
-                                });
-                                await new Promise(r => setTimeout(r, 10));
+                                const canContinue = client.write(chunk);
+                                totalSent += chunk.length;
+                                updateProgress(totalSent, totalSize, totalSize);
+                                
+                                if (!canContinue) {
+                                    // バッファが満杯の場合のみdrainを待つ
+                                    await new Promise(resolve => client.once('drain', resolve));
+                                }
                             }
                         }
                         
@@ -1694,7 +1719,13 @@
         // バイナリファイルを送信する関数
         function sendFileBinary(targetIP, fileInfo, fileData) {
             return new Promise((resolve, reject) => {
-                const client = net.createConnection({ port: TRANSFER_PORT, host: targetIP }, () => {
+                const client = net.createConnection({ 
+                    port: TRANSFER_PORT, 
+                    host: targetIP,
+                    // TCP最適化設定
+                    keepAlive: true,
+                    noDelay: true  // Nagleアルゴリズムを無効化して遅延を減らす
+                }, () => {
                     console.log('📤 ファイル送信開始:', targetIP, fileInfo.name);
                     showProgress('📤 送信中...', fileInfo.name, fileInfo.size);
                     
@@ -1706,7 +1737,6 @@
                     client.write(headerSize);
                     client.write(headerBuffer);
                     
-                    const CHUNK_SIZE = 64 * 1024;
                     let offset = 0;
                     
                     function sendChunk() {
@@ -1723,11 +1753,17 @@
                             return;
                         }
                         const chunk = fileData.slice(offset, offset + CHUNK_SIZE);
-                        client.write(chunk, () => {
-                            offset += chunk.length;
-                            updateProgress(offset, fileData.length, fileInfo.size);
-                            setTimeout(sendChunk, 10);
-                        });
+                        const canContinue = client.write(chunk);
+                        offset += chunk.length;
+                        updateProgress(offset, fileData.length, fileInfo.size);
+                        
+                        if (canContinue) {
+                            // バッファに余裕がある場合は即座に次を送信
+                            setImmediate(sendChunk);
+                        } else {
+                            // バッファが満杯の場合はdrainを待つ
+                            client.once('drain', sendChunk);
+                        }
                     }
                     currentTransfer = { cancelled: false };
                     sendChunk();
