@@ -679,7 +679,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.0.10';
+        const APP_VERSION = '1.0.11';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -834,9 +834,11 @@
             broadcastSocket.on('message', (msg, rinfo) => {
                 try {
                     const data = JSON.parse(msg.toString());
-                    console.log('📥 ブロードキャスト受信:', data, 'from', rinfo.address);
                     if (rinfo.address !== myIP && data.type === 'announce') {
-                        console.log('✅ ピア追加:', data.name, rinfo.address);
+                        // 新しいピアのみログ出力
+                        if (!discoveredPeers.has(rinfo.address)) {
+                            console.log('📥 新しいピア発見:', data.name, rinfo.address);
+                        }
                         addPeer(data.name, rinfo.address);
                     }
                 } catch (err) {
@@ -869,8 +871,6 @@
                 let folderData = null;
                 let folderSavePath = null;
                 let currentFileInfo = null;
-                let isProcessing = false;
-                let dataQueue = [];
                 
                 console.log('📥 接続受付:', socket.remoteAddress);
                 
@@ -1004,7 +1004,10 @@
                                 await ipcRenderer.invoke('write-stream-chunk', streamId, Array.from(chunk));
                                 receivedSize += writeSize;
                                 
-                                console.log('📊 受信進捗:', receivedSize, '/', expectedSize, 'bytes');
+                                // ログは1MB毎に出力（高速化）
+                                if (receivedSize % (1024 * 1024) === 0 || receivedSize === expectedSize) {
+                                    console.log('📊 受信進捗:', receivedSize, '/', expectedSize, 'bytes');
+                                }
                                 
                                 // プログレス更新
                                 if (isFolder) {
@@ -1072,20 +1075,11 @@
                     }
                 }
                 
+                let processingPromise = Promise.resolve();
+                
                 socket.on('data', (data) => {
-                    dataQueue.push(data);
-                    
-                    if (!isProcessing) {
-                        isProcessing = true;
-                        
-                        (async () => {
-                            while (dataQueue.length > 0) {
-                                const chunk = dataQueue.shift();
-                                await processData(chunk);
-                            }
-                            isProcessing = false;
-                        })();
-                    }
+                    // 前の処理が完了するまで待つ（キューは使わずPromiseチェーン）
+                    processingPromise = processingPromise.then(() => processData(data));
                 });
                 
                 socket.on('end', () => {
@@ -1111,6 +1105,8 @@
             console.log('📡 ブロードキャスト送信開始...');
             console.log('📡 送信設定: 名前=' + myName + ', IP=' + myIP + ', 間隔=' + BROADCAST_INTERVAL + 'ms');
             
+            let broadcastCount = 0;
+            
             function broadcast() {
                 const message = JSON.stringify({
                     type: 'announce',
@@ -1120,7 +1116,11 @@
                 
                 try {
                     broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255');
-                    console.log('📤 ブロードキャスト送信:', message);
+                    broadcastCount++;
+                    // 最初の5回と、その後は10回ごとにログ出力
+                    if (broadcastCount <= 5 || broadcastCount % 10 === 0) {
+                        console.log('📤 ブロードキャスト送信 #' + broadcastCount);
+                    }
                 } catch (err) {
                     console.error('❌ ブロードキャスト送信エラー:', err);
                 }
@@ -1131,7 +1131,7 @@
         }
         
         function addPeer(name, ip) {
-            console.log('➕ addPeer呼び出し:', name, ip);
+            const isNew = !discoveredPeers.has(ip);
             const now = Date.now();
             discoveredPeers.set(ip, {
                 name: name,
@@ -1150,7 +1150,10 @@
             }, PEER_TIMEOUT);
             
             peerTimeouts.set(ip, timeout);
-            console.log('✅ ピア登録完了:', name, ip, 'タイムアウト:', PEER_TIMEOUT + 'ms');
+            
+            if (isNew) {
+                console.log('✅ ピア登録:', name, ip);
+            }
             updatePeerList();
         }
         
@@ -1166,7 +1169,6 @@
         
         function updatePeerList() {
             const peers = Array.from(discoveredPeers.values());
-            console.log('🔄 ピアリスト更新:', peers.length, '個のピア');
             document.getElementById('peerCount').textContent = peers.length;
             
             const list = document.getElementById('peerList');
