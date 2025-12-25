@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>P2Pファイル共有</title>
+    <title>P2Pファイル共有 v2.4.0</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -566,7 +566,7 @@
         <div class="card">
             <div class="header">
                 <div>
-                    <div class="title">📡 P2Pファイル共有 <span style="font-size:16px;color:#999;">v2.4.0</span></div>
+                    <div class="title" id="appTitle">📡 P2Pファイル共有</div>
                     <div class="subtitle" id="statusText">待機中...</div>
                 </div>
                 <div class="status">
@@ -679,7 +679,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.0.1';
+        const APP_VERSION = '2.4.0';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -758,7 +758,7 @@
             
             // タイトルとバージョン表示を動的に設定
             document.title = `${APP_NAME} v${APP_VERSION}`;
-            const titleElement = document.querySelector('.title');
+            const titleElement = document.getElementById('appTitle');
             if (titleElement) {
                 titleElement.innerHTML = `📡 ${APP_NAME} <span style="font-size:16px;color:#999;">v${APP_VERSION}</span>`;
             }
@@ -1938,4 +1938,3 @@
     </script>
 </body>
 </html>
-
