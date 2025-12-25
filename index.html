@@ -702,7 +702,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.1.12';
+        const APP_VERSION = '1.1.13';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -931,13 +931,25 @@
                                     if (folderData.filesReceived >= folderData.fileCount) {
                                         hideProgress();
                                         playNotificationSound();
-                                        showToast(`✅ フォルダ受信完了: ${folderData.name}`);
-                                        alert(`✅ フォルダ受信完了！\n\n保存先: ${saveRoot}`);
+                                        const notifMsg = `✅ フォルダ受信完了: ${folderData.name}\n\n保存先: ${saveRoot}`;
+                                        showToast(notifMsg);
+                                        
+                                        // デスクトップ通知
+                                        showDesktopNotification('フォルダ受信完了', folderData.name, () => {
+                                            require('electron').shell.showItemInFolder(saveRoot);
+                                        });
                                     }
                                 } else if (singleFileData) {
                                     hideProgress();
                                     playNotificationSound();
-                                    showToast('✅ ファイル受信完了');
+                                    const notifMsg = `✅ ファイル受信完了: ${singleFileData.name}\n\n保存先: ${singleFileData.path}`;
+                                    showToast(notifMsg);
+                                    
+                                    // デスクトップ通知
+                                    showDesktopNotification('ファイル受信完了', singleFileData.name, () => {
+                                        require('electron').shell.showItemInFolder(singleFileData.path);
+                                    });
+                                    
                                     singleFileData = null;
                                 }
                             }
@@ -972,32 +984,24 @@
                                 totalExpected: 0
                             };
                             
-                            showProgress('📥 保存先を選択してください...', folderData.name, 0);
+                            // ダウンロードフォルダに直接保存
+                            const downloadsPath = require('electron').ipcRenderer.sendSync('get-downloads-path');
+                            saveRoot = path.join(downloadsPath, folderData.name);
                             
-                            console.log('📂 ダイアログ呼び出し開始...');
-                            ipcRenderer.invoke('select-folder').then(result => {
-                                console.log('📂 select-folder結果:', result);
-                                if (!result.success) {
-                                    console.log('❌ キャンセルされました');
-                                    socket.end();
-                                    hideProgress();
-                                    return;
-                                }
-                                
-                                saveRoot = path.join(result.folderPath, folderData.name);
-                                fs.mkdirSync(saveRoot, { recursive: true });
-                                
-                                console.log('📂 保存先:', saveRoot);
-                                console.log('📥 プログレス更新: 受信中...');
-                                showProgress('📥 受信中...', folderData.name, 0);
-                                console.log('✅ READY送信');
-                                socket.write('READY');
-                            }).catch(err => {
-                                console.error('❌ ダイアログエラー:', err);
-                                socket.end();
-                                hideProgress();
-                            });
-                            console.log('📂 ダイアログ呼び出し完了（非同期）');
+                            // 既に存在する場合は連番を付ける
+                            let counter = 1;
+                            let finalPath = saveRoot;
+                            while (fs.existsSync(finalPath)) {
+                                finalPath = path.join(downloadsPath, `${folderData.name} (${counter})`);
+                                counter++;
+                            }
+                            saveRoot = finalPath;
+                            
+                            fs.mkdirSync(saveRoot, { recursive: true });
+                            console.log('📂 保存先:', saveRoot);
+                            
+                            showProgress('📥 受信中...', folderData.name, 0);
+                            socket.write('READY');
                         }
                         
                         // ファイルメタ
@@ -1007,31 +1011,33 @@
                                 : null;
                             
                             if (!fullPath) {
-                                // 単独ファイル
-                                showProgress('📥 保存先を選択してください...', packet.name, 0);
+                                // 単独ファイル - ダウンロードフォルダに直接保存
+                                const downloadsPath = require('electron').ipcRenderer.sendSync('get-downloads-path');
+                                let filePath = path.join(downloadsPath, packet.name);
                                 
-                                ipcRenderer.invoke('save-file', packet.name, []).then(result => {
-                                    console.log('📂 save-file結果:', result);
-                                    if (!result.success) {
-                                        socket.end();
-                                        hideProgress();
-                                        return;
-                                    }
-                                    
-                                    currentStream = fs.createWriteStream(result.filePath);
-                                    remaining = packet.size;
-                                    singleFileData = {
-                                        name: packet.name,
-                                        size: packet.size,
-                                        received: 0
-                                    };
-                                    
-                                    console.log('📄 単独ファイル受信開始:', packet.name, packet.size, 'bytes');
-                                    console.log('📥 プログレス更新: 受信中...');
-                                    showProgress('📥 受信中...', packet.name, packet.size);
-                                    console.log('✅ READY送信');
-                                    socket.write('READY');
-                                });
+                                // 既に存在する場合は連番を付ける
+                                let counter = 1;
+                                const ext = path.extname(packet.name);
+                                const baseName = path.basename(packet.name, ext);
+                                while (fs.existsSync(filePath)) {
+                                    filePath = path.join(downloadsPath, `${baseName} (${counter})${ext}`);
+                                    counter++;
+                                }
+                                
+                                console.log('📄 単独ファイル保存先:', filePath);
+                                
+                                currentStream = fs.createWriteStream(filePath);
+                                remaining = packet.size;
+                                singleFileData = {
+                                    name: packet.name,
+                                    size: packet.size,
+                                    received: 0,
+                                    path: filePath
+                                };
+                                
+                                console.log('📄 単独ファイル受信開始:', packet.name, packet.size, 'bytes');
+                                showProgress('📥 受信中...', packet.name, packet.size);
+                                socket.write('READY');
                             } else {
                                 // フォルダ内ファイル
                                 const dir = path.dirname(fullPath);
@@ -1052,10 +1058,15 @@
                 
                 socket.on('end', () => {
                     console.log('🔌 接続終了');
-                    if (!folderData && currentStream) {
+                    if (singleFileData && !folderData && currentStream) {
                         hideProgress();
                         playNotificationSound();
-                        showToast('✅ ファイル受信完了');
+                        const notifMsg = `✅ ファイル受信完了: ${singleFileData.name}\n\n保存先: ${singleFileData.path}`;
+                        showToast(notifMsg);
+                        
+                        showDesktopNotification('ファイル受信完了', singleFileData.name, () => {
+                            require('electron').shell.showItemInFolder(singleFileData.path);
+                        });
                     }
                 });
                 
