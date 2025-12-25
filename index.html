@@ -679,7 +679,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.0.12';
+        const APP_VERSION = '1.0.13';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -870,15 +870,19 @@
                 let savePath = null;
                 let totalReceived = 0;
                 let totalExpected = 0;
+                let processing = false;
                 
-                socket.on('data', async (data) => {
-                    buffer = Buffer.concat([buffer, data]);
+                async function processBuffer() {
+                    if (processing) return;
+                    processing = true;
                     
-                    while (buffer.length > 0) {
-                        // ヘッダー読み取り
-                        if (!header && buffer.length >= 4) {
-                            const headerSize = buffer.readUInt32BE(0);
-                            if (buffer.length >= 4 + headerSize) {
+                    try {
+                        while (buffer.length > 0) {
+                            // ヘッダー読み取り
+                            if (!header && buffer.length >= 4) {
+                                const headerSize = buffer.readUInt32BE(0);
+                                if (buffer.length < 4 + headerSize) break;
+                                
                                 const headerData = buffer.slice(4, 4 + headerSize).toString('utf8');
                                 header = JSON.parse(headerData);
                                 buffer = buffer.slice(4 + headerSize);
@@ -888,6 +892,7 @@
                                     playNotificationSound();
                                     showReceivedMessage(header.text, header.from, []);
                                     socket.end();
+                                    processing = false;
                                     return;
                                 }
                                 
@@ -901,6 +906,7 @@
                                     if (!result.success) {
                                         socket.end();
                                         hideProgress();
+                                        processing = false;
                                         return;
                                     }
                                     
@@ -935,6 +941,7 @@
                                     if (!result.success) {
                                         socket.end();
                                         hideProgress();
+                                        processing = false;
                                         return;
                                     }
                                     
@@ -949,44 +956,64 @@
                                     continue;
                                 }
                             }
-                        }
-                        
-                        // ⑥データ受信&保存
-                        if (writeStream && expected > 0) {
-                            const writeSize = Math.min(buffer.length, expected - received);
-                            const chunk = buffer.slice(0, writeSize);
-                            writeStream.write(chunk);
                             
-                            received += writeSize;
-                            totalReceived += writeSize;
-                            buffer = buffer.slice(writeSize);
-                            
-                            // プログレス更新
-                            if (isFolder) {
-                                updateProgress(totalReceived, totalExpected, totalExpected);
-                            } else {
-                                updateProgress(received, expected, expected);
-                            }
-                            
-                            // ファイル完了
-                            if (received >= expected) {
-                                writeStream.end();
-                                writeStream = null;
-                                received = 0;
-                                expected = 0;
+                            // ⑥データ受信&保存
+                            if (writeStream && expected > 0) {
+                                const writeSize = Math.min(buffer.length, expected - received);
+                                if (writeSize === 0) break;
                                 
-                                if (!isFolder) {
-                                    hideProgress();
-                                    playNotificationSound();
-                                    showToast('✅ ファイル受信完了');
-                                    socket.end();
-                                    return;
+                                const chunk = buffer.slice(0, writeSize);
+                                
+                                // バックプレッシャー処理
+                                const canContinue = writeStream.write(chunk);
+                                if (!canContinue) {
+                                    await new Promise(resolve => writeStream.once('drain', resolve));
                                 }
+                                
+                                received += writeSize;
+                                totalReceived += writeSize;
+                                buffer = buffer.slice(writeSize);
+                                
+                                // プログレス更新
+                                if (isFolder) {
+                                    updateProgress(totalReceived, totalExpected, totalExpected);
+                                } else {
+                                    updateProgress(received, expected, expected);
+                                }
+                                
+                                // ファイル完了
+                                if (received >= expected) {
+                                    writeStream.end();
+                                    writeStream = null;
+                                    received = 0;
+                                    expected = 0;
+                                    
+                                    if (!isFolder) {
+                                        hideProgress();
+                                        playNotificationSound();
+                                        showToast('✅ ファイル受信完了');
+                                        socket.end();
+                                        processing = false;
+                                        return;
+                                    }
+                                }
+                            } else {
+                                break;
                             }
-                        } else {
-                            break;
                         }
+                    } catch (err) {
+                        console.error('❌ 処理エラー:', err);
+                        if (writeStream) writeStream.end();
+                        hideProgress();
+                        socket.end();
                     }
+                    
+                    processing = false;
+                }
+                
+                socket.on('data', (data) => {
+                    buffer = Buffer.concat([buffer, data]);
+                    processBuffer();
                 });
                 
                 socket.on('end', () => {
