@@ -702,7 +702,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.1.11'
+        const APP_VERSION = '1.1.12';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -859,7 +859,8 @@
             broadcastSocket.on('message', (msg, rinfo) => {
                 try {
                     const data = JSON.parse(msg.toString());
-                    if (rinfo.address !== myIP && data.type === 'announce') {
+                    // 自分自身を除外（IPとデバイス名の両方でチェック）
+                    if (rinfo.address !== myIP && data.name !== myName && data.type === 'announce') {
                         addPeer(data.name, rinfo.address);
                     }
                 } catch (err) {
@@ -962,6 +963,7 @@
                         
                         // フォルダメタ
                         if (packet.type === 'folder') {
+                            console.log('📁 フォルダメタ受信:', packet);
                             folderData = {
                                 name: packet.name,
                                 fileCount: packet.fileCount,
@@ -972,9 +974,11 @@
                             
                             showProgress('📥 保存先を選択してください...', folderData.name, 0);
                             
+                            console.log('📂 ダイアログ呼び出し開始...');
                             ipcRenderer.invoke('select-folder').then(result => {
                                 console.log('📂 select-folder結果:', result);
                                 if (!result.success) {
+                                    console.log('❌ キャンセルされました');
                                     socket.end();
                                     hideProgress();
                                     return;
@@ -988,7 +992,12 @@
                                 showProgress('📥 受信中...', folderData.name, 0);
                                 console.log('✅ READY送信');
                                 socket.write('READY');
+                            }).catch(err => {
+                                console.error('❌ ダイアログエラー:', err);
+                                socket.end();
+                                hideProgress();
                             });
+                            console.log('📂 ダイアログ呼び出し完了（非同期）');
                         }
                         
                         // ファイルメタ
