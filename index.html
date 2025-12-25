@@ -679,7 +679,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.1.4';
+        const APP_VERSION = '1.1.5';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -1767,28 +1767,6 @@
                         hideProgress();
                         reject(err);
                     }
-                });
-                
-                client.on('error', (err) => {
-                    console.error('❌ 送信エラー:', err);
-                    hideProgress();
-                    reject(err);
-                });
-            });
-        }
-                            client.destroy();
-                            reject(new Error('受信側から不明な信号'));
-                        }
-                    });
-                    
-                    // タイムアウト（30秒）
-                    setTimeout(() => {
-                        if (!receivedReady) {
-                            console.error('❌ 受信側準備タイムアウト');
-                            client.destroy();
-                            reject(new Error('受信側の準備タイムアウト'));
-                        }
-                    }, 30000);
                 });
                 
                 client.on('error', (err) => {
