@@ -679,7 +679,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.0.7';
+        const APP_VERSION = '1.0.8';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -905,7 +905,7 @@
                                         };
                                         
                                         console.log('📁 フォルダ受信開始:', folderData.name);
-                                        showProgress('📥 受信中...', folderData.name, 0);
+                                        showProgress('📥 保存先を選択してください...', folderData.name, 0);
                                         
                                         // フォルダ保存先を選択
                                         const result = await ipcRenderer.invoke('select-folder');
@@ -918,6 +918,13 @@
                                         
                                         folderSavePath = `${result.folderPath}/${folderData.name}`;
                                         await ipcRenderer.invoke('create-directory', folderSavePath);
+                                        
+                                        console.log('✅ 保存先選択完了:', folderSavePath);
+                                        showProgress('📥 受信中...', folderData.name, 0);
+                                        
+                                        // 送信側に準備完了を通知
+                                        socket.write('READY');
+                                        console.log('📤 送信側にREADY信号送信');
                                         
                                         fileInfo = null;
                                         if (remainingData.length > 0) {
@@ -952,7 +959,7 @@
                                         // 単独ファイル受信
                                         expectedSize = fileInfo.size;
                                         receivedSize = 0;
-                                        showProgress('📥 受信中...', fileInfo.name, fileInfo.size);
+                                        showProgress('📥 保存先を選択してください...', fileInfo.name, fileInfo.size);
                                         
                                         const result = await ipcRenderer.invoke('save-file', fileInfo.name, []);
                                         if (!result.success) {
@@ -965,6 +972,12 @@
                                         streamId = streamResult.streamId;
                                         
                                         console.log('📄 ファイル受信開始:', fileInfo.name, fileInfo.size, 'bytes');
+                                        console.log('✅ 保存先選択完了:', result.filePath);
+                                        showProgress('📥 受信中...', fileInfo.name, fileInfo.size);
+                                        
+                                        // 送信側に準備完了を通知
+                                        socket.write('READY');
+                                        console.log('📤 送信側にREADY信号送信');
                                         
                                         fileInfo = null;
                                         if (remainingData.length > 0) {
@@ -1734,6 +1747,7 @@
                             type: 'folder',
                             name: folderItem.name,
                             fileCount: folderItem.files.length,
+                            totalSize: folderItem.files.reduce((sum, f) => sum + f.file.size, 0),
                             isFolder: true
                         };
                         
@@ -1745,12 +1759,94 @@
                         client.write(headerSize);
                         client.write(headerBuffer);
                         
-                        // 少し待つ
-                        await new Promise(r => setTimeout(r, 50));
+                        console.log('📤 フォルダ情報送信完了、受信側の準備を待機中...');
                         
-                        // 各ファイルの情報とデータを送信
-                        let totalSent = 0;
-                        const totalSize = folderItem.files.reduce((sum, f) => sum + f.file.size, 0);
+                        // 受信側からの準備完了信号を待つ
+                        let receivedReady = false;
+                        
+                        client.once('data', async (readySignal) => {
+                            const signal = readySignal.toString('utf8');
+                            console.log('📥 受信側から信号:', signal);
+                            
+                            if (signal === 'READY') {
+                                receivedReady = true;
+                                console.log('✅ 受信側準備完了、ファイル送信開始');
+                                
+                                // 各ファイルの情報とデータを送信
+                                let totalSent = 0;
+                                const totalSize = folderItem.files.reduce((sum, f) => sum + f.file.size, 0);
+                                
+                                for (const fileItem of folderItem.files) {
+                                    const file = fileItem.file;
+                                    const arrayBuffer = await readFileAsArrayBuffer(file);
+                                    const fileData = Buffer.from(arrayBuffer);
+                                    
+                                    // ファイル情報
+                                    const fileInfo = {
+                                        name: file.name,
+                                        path: fileItem.path,
+                                        size: file.size,
+                                        type: file.type
+                                    };
+                                    
+                                    const fileHeaderJSON = JSON.stringify(fileInfo);
+                                    const fileHeaderBuffer = Buffer.from(fileHeaderJSON, 'utf8');
+                                    const fileHeaderSize = Buffer.alloc(4);
+                                    fileHeaderSize.writeUInt32BE(fileHeaderBuffer.length, 0);
+                                    
+                                    // ヘッダー送信
+                                    client.write(fileHeaderSize);
+                                    client.write(fileHeaderBuffer);
+                                    
+                                    console.log('📤 ファイル送信:', file.name, file.size, 'bytes');
+                                    
+                                    // データ送信（高速化）
+                                    for (let offset = 0; offset < fileData.length; offset += CHUNK_SIZE) {
+                                        const chunk = fileData.slice(offset, offset + CHUNK_SIZE);
+                                        const canContinue = client.write(chunk);
+                                        totalSent += chunk.length;
+                                        updateProgress(totalSent, totalSize, totalSize);
+                                        
+                                        if (!canContinue) {
+                                            // バッファが満杯の場合のみdrainを待つ
+                                            await new Promise(resolve => client.once('drain', resolve));
+                                        }
+                                    }
+                                    
+                                    console.log('✅ ファイル送信完了:', file.name);
+                                }
+                                
+                                client.end();
+                                console.log('✅ フォルダ送信完了:', folderItem.name);
+                                resolve();
+                            } else {
+                                console.error('❌ 不明な信号:', signal);
+                                client.destroy();
+                                reject(new Error('受信側から不明な信号'));
+                            }
+                        });
+                        
+                        // タイムアウト（30秒）
+                        setTimeout(() => {
+                            if (!receivedReady) {
+                                console.error('❌ 受信側準備タイムアウト');
+                                client.destroy();
+                                reject(new Error('受信側の準備タイムアウト'));
+                            }
+                        }, 30000);
+                        
+                    } catch (err) {
+                        client.destroy();
+                        reject(err);
+                    }
+                });
+                
+                client.on('error', (err) => {
+                    console.error('❌ フォルダ送信エラー:', err);
+                    reject(err);
+                });
+            });
+        }
                         
                         for (const fileItem of folderItem.files) {
                             const file = fileItem.file;
@@ -1826,36 +1922,64 @@
                     client.write(headerSize);
                     client.write(headerBuffer);
                     
-                    let offset = 0;
+                    console.log('📤 ファイル情報送信完了、受信側の準備を待機中...');
                     
-                    function sendChunk() {
-                        if (currentTransfer && currentTransfer.cancelled) {
-                            client.end();
-                            hideProgress();
-                            reject(new Error('キャンセルされました'));
-                            return;
-                        }
-                        if (offset >= fileData.length) {
-                            client.end();
-                            console.log('✅ ファイル送信完了:', fileInfo.name);
-                            resolve();
-                            return;
-                        }
-                        const chunk = fileData.slice(offset, offset + CHUNK_SIZE);
-                        const canContinue = client.write(chunk);
-                        offset += chunk.length;
-                        updateProgress(offset, fileData.length, fileInfo.size);
+                    // 受信側からの準備完了信号を待つ
+                    let receivedReady = false;
+                    
+                    client.once('data', (readySignal) => {
+                        const signal = readySignal.toString('utf8');
+                        console.log('📥 受信側から信号:', signal);
                         
-                        if (canContinue) {
-                            // バッファに余裕がある場合は即座に次を送信
-                            setImmediate(sendChunk);
+                        if (signal === 'READY') {
+                            receivedReady = true;
+                            console.log('✅ 受信側準備完了、データ送信開始');
+                            
+                            let offset = 0;
+                            
+                            function sendChunk() {
+                                if (currentTransfer && currentTransfer.cancelled) {
+                                    client.end();
+                                    hideProgress();
+                                    reject(new Error('キャンセルされました'));
+                                    return;
+                                }
+                                if (offset >= fileData.length) {
+                                    client.end();
+                                    console.log('✅ ファイル送信完了:', fileInfo.name);
+                                    resolve();
+                                    return;
+                                }
+                                const chunk = fileData.slice(offset, offset + CHUNK_SIZE);
+                                const canContinue = client.write(chunk);
+                                offset += chunk.length;
+                                updateProgress(offset, fileData.length, fileInfo.size);
+                                
+                                if (canContinue) {
+                                    // バッファに余裕がある場合は即座に次を送信
+                                    setImmediate(sendChunk);
+                                } else {
+                                    // バッファが満杯の場合はdrainを待つ
+                                    client.once('drain', sendChunk);
+                                }
+                            }
+                            currentTransfer = { cancelled: false };
+                            sendChunk();
                         } else {
-                            // バッファが満杯の場合はdrainを待つ
-                            client.once('drain', sendChunk);
+                            console.error('❌ 不明な信号:', signal);
+                            client.destroy();
+                            reject(new Error('受信側から不明な信号'));
                         }
-                    }
-                    currentTransfer = { cancelled: false };
-                    sendChunk();
+                    });
+                    
+                    // タイムアウト（30秒）
+                    setTimeout(() => {
+                        if (!receivedReady) {
+                            console.error('❌ 受信側準備タイムアウト');
+                            client.destroy();
+                            reject(new Error('受信側の準備タイムアウト'));
+                        }
+                    }, 30000);
                 });
                 
                 client.on('error', (err) => {
