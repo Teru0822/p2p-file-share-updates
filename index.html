@@ -702,7 +702,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.1.9';
+        const APP_VERSION = '1.1.10';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -885,6 +885,7 @@
             transferServer = net.createServer((socket) => {
                 socket.setKeepAlive(true);
                 socket.setNoDelay(true);
+                socket.setTimeout(0); // タイムアウト無効化
                 
                 let buffer = Buffer.alloc(0);
                 let saveRoot = null;
@@ -1088,7 +1089,7 @@
                 
                 try {
                     broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255');
-                    console.log('📤 ブロードキャスト送信:', message);
+                    // ログ削減: 成功時はログなし
                 } catch (err) {
                     console.error('❌ ブロードキャスト送信エラー:', err);
                 }
@@ -1691,6 +1692,7 @@
                     keepAlive: true,
                     noDelay: true
                 }, async () => {
+                    client.setTimeout(0); // タイムアウト無効化
                     console.log('📁 フォルダ送信開始:', targetIP, folderItem.name);
                     
                     try {
@@ -1833,6 +1835,7 @@
                     keepAlive: true,
                     noDelay: true
                 }, async () => {
+                    client.setTimeout(0); // タイムアウト無効化
                     console.log('📤 ファイル送信開始:', targetIP, fileInfo.name);
                     showProgress('📤 送信中...', fileInfo.name, fileInfo.size);
                     
@@ -1867,6 +1870,7 @@
                 });
             });
         }
+
         
         function sendMessageData(targetIP, text, filesData, targetName) {
             return new Promise((resolve, reject) => {
