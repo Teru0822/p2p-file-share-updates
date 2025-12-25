@@ -679,7 +679,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.0.8';
+        const APP_VERSION = '1.0.9';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -824,6 +824,7 @@
         }
         
         function setupBroadcast() {
+            console.log('🔧 ブロードキャスト設定開始...');
             broadcastSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
             
             broadcastSocket.on('error', (err) => {
@@ -833,15 +834,20 @@
             broadcastSocket.on('message', (msg, rinfo) => {
                 try {
                     const data = JSON.parse(msg.toString());
+                    console.log('📥 ブロードキャスト受信:', data, 'from', rinfo.address);
                     if (rinfo.address !== myIP && data.type === 'announce') {
+                        console.log('✅ ピア追加:', data.name, rinfo.address);
                         addPeer(data.name, rinfo.address);
                     }
-                } catch (err) {}
+                } catch (err) {
+                    console.error('❌ メッセージ解析エラー:', err);
+                }
             });
             
             broadcastSocket.on('listening', () => {
                 broadcastSocket.setBroadcast(true);
                 console.log('✅ UDPブロードキャスト待受開始:', BROADCAST_PORT);
+                console.log('📡 自分のIP:', myIP);
             });
             
             broadcastSocket.bind(BROADCAST_PORT);
@@ -1145,6 +1151,9 @@
         }
         
         function startBroadcasting() {
+            console.log('📡 ブロードキャスト送信開始...');
+            console.log('📡 送信設定: 名前=' + myName + ', IP=' + myIP + ', 間隔=' + BROADCAST_INTERVAL + 'ms');
+            
             function broadcast() {
                 const message = JSON.stringify({
                     type: 'announce',
@@ -1154,7 +1163,10 @@
                 
                 try {
                     broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255');
-                } catch (err) {}
+                    console.log('📤 ブロードキャスト送信:', message);
+                } catch (err) {
+                    console.error('❌ ブロードキャスト送信エラー:', err);
+                }
             }
             
             setTimeout(broadcast, 100);
@@ -1162,6 +1174,7 @@
         }
         
         function addPeer(name, ip) {
+            console.log('➕ addPeer呼び出し:', name, ip);
             const now = Date.now();
             discoveredPeers.set(ip, {
                 name: name,
@@ -1180,6 +1193,7 @@
             }, PEER_TIMEOUT);
             
             peerTimeouts.set(ip, timeout);
+            console.log('✅ ピア登録完了:', name, ip, 'タイムアウト:', PEER_TIMEOUT + 'ms');
             updatePeerList();
         }
         
@@ -1195,6 +1209,7 @@
         
         function updatePeerList() {
             const peers = Array.from(discoveredPeers.values());
+            console.log('🔄 ピアリスト更新:', peers.length, '個のピア');
             document.getElementById('peerCount').textContent = peers.length;
             
             const list = document.getElementById('peerList');
