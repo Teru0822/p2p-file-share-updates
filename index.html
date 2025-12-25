@@ -679,7 +679,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.1.5';
+        const APP_VERSION = '1.1.6';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -1724,15 +1724,7 @@
                 sendChunk();
             });
         }
-                });
-                
-                client.on('error', (err) => {
-                    console.error('❌ フォルダ送信エラー:', err);
-                    reject(err);
-                });
-            });
-        }
-        
+       
         // 単独ファイル送信
         function sendFileBinary(targetIP, fileInfo, file) {
             return new Promise((resolve, reject) => {
@@ -2268,3 +2260,4 @@
     </script>
 </body>
 </html>
+
