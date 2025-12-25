@@ -679,7 +679,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.1.3';
+        const APP_VERSION = '1.1.4';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -857,192 +857,166 @@
         
         function setupTransferServer() {
             transferServer = net.createServer((socket) => {
-                // TCP最適化設定
                 socket.setKeepAlive(true);
+                socket.setNoDelay(true);
+                
                 let buffer = Buffer.alloc(0);
-                let header = null;
-                let writeStream = null;
-                let receivedSize = 0;
-                let expectedSize = 0;
-                let isFolder = false;
+                let saveRoot = null;
+                let currentStream = null;
+                let remaining = 0;
                 let folderData = null;
-                let folderSavePath = null;
-                let currentFileInfo = null;
                 
                 socket.on('data', (data) => {
                     buffer = Buffer.concat([buffer, data]);
-                    console.log('🔵 データ受信:', data.length, 'bytes, バッファ合計:', buffer.length, 'bytes');
                     
-                    // 処理ループ
-                    while (buffer.length > 0) {
-                        // ヘッダー読み取り
-                        if (!header && buffer.length >= 4) {
-                            const headerSize = buffer.readUInt32BE(0);
-                            if (buffer.length < 4 + headerSize) {
-                                console.log('⏸️ ヘッダー待機中 (必要:', (4 + headerSize), 'bytes, 現在:', buffer.length, 'bytes)');
-                                break;
-                            }
-                            
-                            const headerJSON = buffer.slice(4, 4 + headerSize).toString('utf8');
-                            header = JSON.parse(headerJSON);
-                            buffer = buffer.slice(4 + headerSize);
-                            
-                            console.log('✅ ヘッダー受信:', header.type, header.name || '');
-                            
-                            // メッセージ
-                            if (header.type === 'message') {
-                                playNotificationSound();
-                                showReceivedMessage(header.text, header.from, []);
-                                socket.end();
-                                return;
-                            }
-                            
-                            // フォルダヘッダー
-                            if (header.type === 'folder') {
-                                isFolder = true;
-                                folderData = { 
-                                    name: header.name, 
-                                    fileCount: header.fileCount, 
-                                    files: [], 
-                                    totalSize: 0,
-                                    totalExpected: 0
-                                };
-                                
-                                showProgress('📥 保存先を選択してください...', folderData.name, 0);
-                                
-                                ipcRenderer.invoke('select-folder').then(result => {
-                                    if (!result.success) {
-                                        socket.end();
-                                        hideProgress();
-                                        return;
-                                    }
-                                    
-                                    folderSavePath = result.folderPath + '/' + folderData.name;
-                                    fs.mkdirSync(folderSavePath, { recursive: true });
-                                    
-                                    console.log('📂 保存先:', folderSavePath);
-                                    showProgress('📥 受信中...', folderData.name, 0);
-                                    socket.write('READY');
-                                });
-                                
-                                header = null;
-                                return;
-                            }
-                            
-                            // ファイルヘッダー
-                            if (isFolder) {
-                                currentFileInfo = header;
-                                expectedSize = header.size;
-                                receivedSize = 0;
-                                folderData.totalExpected += expectedSize;
-                                
-                                const fullPath = folderSavePath + '/' + header.path.replace(/\\/g, '/');
-                                const fileDir = fullPath.substring(0, fullPath.lastIndexOf('/'));
-                                if (fileDir !== folderSavePath) {
-                                    fs.mkdirSync(fileDir, { recursive: true });
-                                }
-                                
-                                writeStream = fs.createWriteStream(fullPath);
-                                console.log('📄 ファイル開始:', header.name, header.size, 'bytes');
-                                
-                                header = null;
-                                continue;
-                            } else {
-                                // 単独ファイル
-                                expectedSize = header.size;
-                                receivedSize = 0;
-                                
-                                showProgress('📥 保存先を選択してください...', header.name, 0);
-                                
-                                ipcRenderer.invoke('save-file', header.name, []).then(result => {
-                                    if (!result.success) {
-                                        socket.end();
-                                        hideProgress();
-                                        return;
-                                    }
-                                    
-                                    writeStream = fs.createWriteStream(result.filePath);
-                                    showProgress('📥 受信中...', header.name, header.size);
-                                    socket.write('READY');
-                                });
-                                
-                                header = null;
-                                return;
-                            }
-                        }
-                        
-                        // データ書き込み
-                        if (writeStream && expectedSize > 0) {
-                            const writeSize = Math.min(buffer.length, expectedSize - receivedSize);
-                            if (writeSize === 0) break;
-                            
-                            const chunk = buffer.slice(0, writeSize);
-                            writeStream.write(chunk);
-                            receivedSize += writeSize;
-                            buffer = buffer.slice(writeSize);
+                    while (true) {
+                        // ファイルデータ書き込み中
+                        if (remaining > 0) {
+                            const chunk = buffer.slice(0, Math.min(buffer.length, remaining));
+                            currentStream.write(chunk);
+                            buffer = buffer.slice(chunk.length);
+                            remaining -= chunk.length;
                             
                             // プログレス更新
-                            if (isFolder) {
-                                const totalReceived = folderData.totalSize + receivedSize;
-                                const totalExpected = folderData.totalExpected;
-                                const percent = Math.round((totalReceived / totalExpected) * 100);
-                                console.log('📊 フォルダ進捗:', totalReceived, '/', totalExpected, '=', percent + '%');
-                                updateProgress(totalReceived, totalExpected, totalExpected);
-                            } else {
-                                const percent = Math.round((receivedSize / expectedSize) * 100);
-                                console.log('📊 ファイル進捗:', receivedSize, '/', expectedSize, '=', percent + '%');
-                                updateProgress(receivedSize, expectedSize, expectedSize);
+                            if (folderData) {
+                                folderData.received += chunk.length;
+                                updateProgress(folderData.received, folderData.totalExpected, folderData.totalExpected);
                             }
                             
-                            // ファイル完了
-                            if (receivedSize >= expectedSize) {
-                                writeStream.end();
-                                writeStream = null;
+                            if (remaining === 0) {
+                                currentStream.end();
+                                currentStream = null;
                                 console.log('✅ ファイル完了');
                                 
-                                if (isFolder) {
-                                    folderData.files.push({ name: currentFileInfo.name, path: currentFileInfo.path, size: currentFileInfo.size });
-                                    folderData.totalSize += currentFileInfo.size;
-                                    currentFileInfo = null;
-                                    receivedSize = 0;
-                                    expectedSize = 0;
-                                    
-                                    if (folderData.files.length >= folderData.fileCount) {
+                                if (folderData) {
+                                    folderData.filesReceived++;
+                                    if (folderData.filesReceived >= folderData.fileCount) {
                                         hideProgress();
                                         playNotificationSound();
-                                        showToast('✅ フォルダ受信完了: ' + folderData.name);
-                                        alert('✅ フォルダ受信完了！\n\n保存先: ' + folderSavePath + '\nファイル数: ' + folderData.files.length);
-                                        socket.end();
-                                        return;
+                                        showToast(`✅ フォルダ受信完了: ${folderData.name}`);
+                                        alert(`✅ フォルダ受信完了！\n\n保存先: ${saveRoot}`);
                                     }
-                                } else {
-                                    hideProgress();
-                                    playNotificationSound();
-                                    showToast('✅ ファイル受信完了');
-                                    socket.end();
-                                    return;
                                 }
                             }
-                        } else {
-                            break;
+                            continue;
+                        }
+                        
+                        // パケット解析
+                        const res = decodePacket(buffer);
+                        if (!res) break;
+                        
+                        buffer = res.rest;
+                        const packet = res.packet;
+                        
+                        console.log('📦 パケット受信:', packet.type);
+                        
+                        // メッセージ
+                        if (packet.type === 'message') {
+                            playNotificationSound();
+                            showReceivedMessage(packet.text, packet.from, []);
+                            socket.end();
+                            return;
+                        }
+                        
+                        // フォルダメタ
+                        if (packet.type === 'folder') {
+                            folderData = {
+                                name: packet.name,
+                                fileCount: packet.fileCount,
+                                filesReceived: 0,
+                                received: 0,
+                                totalExpected: 0
+                            };
+                            
+                            showProgress('📥 保存先を選択してください...', folderData.name, 0);
+                            
+                            ipcRenderer.invoke('select-folder').then(result => {
+                                if (!result.success) {
+                                    socket.end();
+                                    hideProgress();
+                                    return;
+                                }
+                                
+                                saveRoot = path.join(result.folderPath, folderData.name);
+                                fs.mkdirSync(saveRoot, { recursive: true });
+                                
+                                console.log('📂 保存先:', saveRoot);
+                                showProgress('📥 受信中...', folderData.name, 0);
+                                socket.write('READY');
+                            });
+                        }
+                        
+                        // ファイルメタ
+                        if (packet.type === 'file') {
+                            const fullPath = saveRoot 
+                                ? path.join(saveRoot, packet.path)
+                                : null;
+                            
+                            if (!fullPath) {
+                                // 単独ファイル
+                                showProgress('📥 保存先を選択してください...', packet.name, 0);
+                                
+                                ipcRenderer.invoke('save-file', packet.name, []).then(result => {
+                                    if (!result.success) {
+                                        socket.end();
+                                        hideProgress();
+                                        return;
+                                    }
+                                    
+                                    currentStream = fs.createWriteStream(result.filePath);
+                                    remaining = packet.size;
+                                    
+                                    showProgress('📥 受信中...', packet.name, packet.size);
+                                    socket.write('READY');
+                                });
+                            } else {
+                                // フォルダ内ファイル
+                                const dir = path.dirname(fullPath);
+                                fs.mkdirSync(dir, { recursive: true });
+                                
+                                currentStream = fs.createWriteStream(fullPath);
+                                remaining = packet.size;
+                                folderData.totalExpected += packet.size;
+                                
+                                console.log('📄 ファイル開始:', packet.name, packet.size, 'bytes');
+                            }
                         }
                     }
                 });
                 
                 socket.on('end', () => {
                     console.log('🔌 接続終了');
+                    if (!folderData && currentStream) {
+                        hideProgress();
+                        playNotificationSound();
+                        showToast('✅ ファイル受信完了');
+                    }
                 });
                 
                 socket.on('error', (err) => {
                     console.error('❌ エラー:', err);
-                    if (writeStream) writeStream.end();
+                    if (currentStream) currentStream.end();
                     hideProgress();
                 });
             });
-
+            
             transferServer.listen(TRANSFER_PORT, () => {
                 console.log('✅ 転送サーバー起動:', TRANSFER_PORT);
             });
+        }
+        
+        // パケットデコード
+        function decodePacket(buffer) {
+            if (buffer.length < 4) return null;
+            
+            const size = buffer.readUInt32BE(0);
+            if (buffer.length < 4 + size) return null;
+            
+            const json = buffer.slice(4, 4 + size).toString('utf8');
+            const packet = JSON.parse(json);
+            const rest = buffer.slice(4 + size);
+            
+            return { packet, rest };
         }
         function startBroadcasting() {
             console.log('📡 ブロードキャスト送信開始...');
@@ -1203,59 +1177,48 @@
         }
         
         function sendFileData(targetIP, file, callback) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const fileData = Buffer.from(e.target.result);
-                const fileInfo = { name: file.name, type: file.type, size: file.size };
+            const client = net.createConnection({ 
+                port: TRANSFER_PORT, 
+                host: targetIP,
+                keepAlive: true,
+                noDelay: true
+            }, async () => {
+                console.log('📤 ファイル送信開始:', targetIP, file.name);
+                showProgress('📤 送信中...', file.name, file.size);
                 
-                const client = net.createConnection({ port: TRANSFER_PORT, host: targetIP }, () => {
-                    console.log('📤 ファイル送信開始:', targetIP, file.name);
-                    showProgress('📤 送信中...', file.name, file.size);
+                try {
+                    const fileInfo = {
+                        type: 'file',
+                        name: file.name,
+                        size: file.size
+                    };
                     
-                    const headerJSON = JSON.stringify(fileInfo);
-                    const headerBuffer = Buffer.from(headerJSON, 'utf8');
-                    const headerSize = Buffer.alloc(4);
-                    headerSize.writeUInt32BE(headerBuffer.length, 0);
+                    client.write(encodePacket(fileInfo));
+                    await waitReady(client);
                     
-                    client.write(headerSize);
-                    client.write(headerBuffer);
+                    await streamFileFromBrowser(client, file, (sent) => {
+                        updateProgress(sent, file.size, file.size);
+                    });
                     
-                    const CHUNK_SIZE = 64 * 1024;
-                    let offset = 0;
+                    client.end();
+                    hideProgress();
+                    console.log('✅ ファイル送信完了:', file.name);
+                    if (!callback) alert(`✅ 送信完了！\n\nファイル: ${file.name}`);
+                    if (callback) callback();
                     
-                    function sendChunk() {
-                        if (currentTransfer && currentTransfer.cancelled) {
-                            client.end();
-                            hideProgress();
-                            if (callback) callback();
-                            return;
-                        }
-                        if (offset >= fileData.length) {
-                            client.end();
-                            hideProgress();
-                            console.log('✅ ファイル送信完了:', file.name);
-                            if (!callback) alert(`✅ 送信完了！\n\nファイル: ${file.name}`);
-                            if (callback) callback();
-                            return;
-                        }
-                        const chunk = fileData.slice(offset, offset + CHUNK_SIZE);
-                        client.write(chunk, () => {
-                            offset += chunk.length;
-                            updateProgress(offset, fileData.length, fileData.length);
-                            setTimeout(sendChunk, 10);
-                        });
-                    }
-                    currentTransfer = { cancelled: false };
-                    sendChunk();
-                });
-                
-                client.on('error', (err) => {
+                } catch (err) {
                     console.error('❌ 送信エラー:', err);
+                    client.destroy();
                     hideProgress();
                     if (callback) callback();
-                });
-            };
-            reader.readAsArrayBuffer(file);
+                }
+            });
+            
+            client.on('error', (err) => {
+                console.error('❌ 送信エラー:', err);
+                hideProgress();
+                if (callback) callback();
+            });
         }
         
         function handleDragOver(event, ip) {
@@ -1496,14 +1459,6 @@
             updateAttachedFileList();
         }
         
-        function readFileAsArrayBuffer(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = (e) => resolve(e.target.result);
-                reader.onerror = reject;
-                reader.readAsArrayBuffer(file);
-            });
-        }
         
         function openSendModal(targetIP, targetName) {
             currentSendTarget = { ip: targetIP, name: targetName };
