@@ -679,7 +679,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.1.7';
+        const APP_VERSION = '1.1.8';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -710,8 +710,8 @@
         const BROADCAST_PORT = 45678;      // ブロードキャスト用ポート
         const TRANSFER_PORT = 45679;       // ファイル転送用ポート
         const NOTIFICATION_PORT = 45680;   // 転送通知用ポート
-        const BROADCAST_INTERVAL = 1000;   // ブロードキャスト間隔（1秒に短縮）
-        const PEER_TIMEOUT = 5000;         // ピアタイムアウト（5秒）
+        const BROADCAST_INTERVAL = 1000;   // ブロードキャスト間隔（1秒）
+        const PEER_TIMEOUT = 10000;        // ピアタイムアウト（10秒 = 10回分の余裕）
         const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000; // アップデートチェック間隔（6時間）
         const CHUNK_SIZE = 256 * 1024;     // 転送チャンクサイズ（256KB に増加）
         const CHUNK_DELAY = 0;             // チャンク間遅延なし
@@ -836,9 +836,7 @@
             broadcastSocket.on('message', (msg, rinfo) => {
                 try {
                     const data = JSON.parse(msg.toString());
-                    console.log('📥 ブロードキャスト受信:', data, 'from', rinfo.address);
                     if (rinfo.address !== myIP && data.type === 'announce') {
-                        console.log('✅ ピア追加:', data.name, rinfo.address);
                         addPeer(data.name, rinfo.address);
                     }
                 } catch (err) {
@@ -1073,8 +1071,9 @@
         }
         
         function addPeer(name, ip) {
-            console.log('➕ addPeer呼び出し:', name, ip);
+            const isNew = !discoveredPeers.has(ip);
             const now = Date.now();
+            
             discoveredPeers.set(ip, {
                 name: name,
                 ip: ip,
@@ -1088,15 +1087,24 @@
             
             // 新しいタイムアウトを設定
             const timeout = setTimeout(() => {
+                console.log('⏱️ ピアタイムアウト:', name, ip);
                 removePeer(ip);
             }, PEER_TIMEOUT);
             
             peerTimeouts.set(ip, timeout);
-            console.log('✅ ピア登録完了:', name, ip, 'タイムアウト:', PEER_TIMEOUT + 'ms');
+            
+            if (isNew) {
+                console.log('✅ ピア登録完了:', name, ip);
+            }
+            
             updatePeerList();
         }
         
         function removePeer(ip) {
+            const peer = discoveredPeers.get(ip);
+            if (peer) {
+                console.log('❌ ピア削除:', peer.name, ip);
+            }
             discoveredPeers.delete(ip);
             selectedPeers.delete(ip);
             if (peerTimeouts.has(ip)) {
@@ -1108,7 +1116,6 @@
         
         function updatePeerList() {
             const peers = Array.from(discoveredPeers.values());
-            console.log('🔄 ピアリスト更新:', peers.length, '個のピア');
             document.getElementById('peerCount').textContent = peers.length;
             
             const list = document.getElementById('peerList');
@@ -1779,7 +1786,8 @@
                 sendChunk();
             });
         }
-       
+
+        
         // 単独ファイル送信
         function sendFileBinary(targetIP, fileInfo, file) {
             return new Promise((resolve, reject) => {
@@ -1823,6 +1831,7 @@
                 });
             });
         }
+
         
         function sendMessageData(targetIP, text, filesData, targetName) {
             return new Promise((resolve, reject) => {
