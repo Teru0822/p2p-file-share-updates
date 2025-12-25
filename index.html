@@ -679,7 +679,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.0.18';
+        const APP_VERSION = '1.1.0';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -1004,7 +1004,10 @@
                                 streamId.write(chunk);
                                 receivedSize += writeSize;
                                 
-                                console.log('📊 受信進捗:', receivedSize, '/', expectedSize, 'bytes');
+                                // 1MBごとまたは完了時のみログ
+                                if (receivedSize % (1024 * 1024) < writeSize || receivedSize >= expectedSize) {
+                                    console.log('📊 受信進捗:', receivedSize, '/', expectedSize, 'bytes');
+                                }
                                 
                                 // プログレス更新
                                 if (isFolder) {
@@ -1064,7 +1067,7 @@
                     } catch (err) {
                         console.error('❌ データ処理エラー:', err);
                         if (streamId) {
-                            await ipcRenderer.invoke('close-write-stream', streamId);
+                            streamId.end();
                         }
                         hideProgress();
                         showToast('❌ 受信エラー: ' + err.message, true);
