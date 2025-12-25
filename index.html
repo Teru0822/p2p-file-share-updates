@@ -679,7 +679,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.0.3';
+        const APP_VERSION = '1.0.4';
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -848,6 +848,12 @@
                 let fileInfo = null;
                 let expectedSize = 0;
                 let isMessage = false;
+                let isFolder = false;
+                let folderData = {
+                    name: '',
+                    files: []
+                };
+                let currentFileIndex = 0;
                 
                 console.log('📥 接続受付:', socket.remoteAddress);
                 
@@ -863,43 +869,99 @@
                             
                             console.log('📋 受信データ:', fileInfo);
                             
+                            // メッセージ受信
                             if (fileInfo.type === 'message') {
                                 isMessage = true;
                                 expectedSize = 0;
                                 
                                 console.log('💬 メッセージ受信:', {
                                     from: fileInfo.from,
-                                    textLength: fileInfo.text ? fileInfo.text.length : 0,
-                                    fileCount: fileInfo.fileCount || 0,
-                                    filesReceived: fileInfo.files ? fileInfo.files.length : 0,
-                                    fileDetails: fileInfo.files ? fileInfo.files.map(f => ({
-                                        name: f.name,
-                                        size: f.size,
-                                        hasData: !!f.data,
-                                        dataLength: f.data ? f.data.length : 0
-                                    })) : []
+                                    textLength: fileInfo.text ? fileInfo.text.length : 0
                                 });
                                 
                                 playNotificationSound();
-                                showReceivedMessage(fileInfo.text, fileInfo.from, fileInfo.files || []);
+                                showReceivedMessage(fileInfo.text, fileInfo.from, []);
                                 socket.end();
                                 return;
                             }
                             
+                            // フォルダ受信開始
+                            if (fileInfo.type === 'folder') {
+                                isFolder = true;
+                                folderData.name = fileInfo.name;
+                                folderData.fileCount = fileInfo.fileCount;
+                                console.log('📁 フォルダ受信開始:', folderData.name, '/', folderData.fileCount, 'ファイル');
+                                showProgress('📥 受信中...', folderData.name, 0);
+                                receivedData = receivedData.slice(4 + headerSize);
+                                fileInfo = null; // 次のファイルヘッダーを待つ
+                                return;
+                            }
+                            
+                            // 通常ファイル受信
                             expectedSize = fileInfo.size;
                             receivedData = receivedData.slice(4 + headerSize);
                             showProgress('📥 受信中...', fileInfo.name, fileInfo.size);
                         }
                     }
                     
+                    // フォルダ内のファイルを受信中
+                    if (isFolder && !fileInfo && receivedData.length >= 4) {
+                        const headerSize = receivedData.readUInt32BE(0);
+                        
+                        if (receivedData.length >= 4 + headerSize) {
+                            const headerJSON = receivedData.slice(4, 4 + headerSize).toString('utf8');
+                            fileInfo = JSON.parse(headerJSON);
+                            
+                            console.log('📄 フォルダ内ファイル:', fileInfo.name);
+                            expectedSize = fileInfo.size;
+                            receivedData = receivedData.slice(4 + headerSize);
+                        }
+                    }
+                    
+                    // プログレス更新
                     if (fileInfo && !isMessage && expectedSize > 0) {
                         updateProgress(receivedData.length, expectedSize, expectedSize);
+                        
+                        // ファイル受信完了チェック
+                        if (receivedData.length >= expectedSize) {
+                            const fileData = receivedData.slice(0, expectedSize);
+                            
+                            if (isFolder) {
+                                // フォルダ内ファイルとして保存
+                                folderData.files.push({
+                                    name: fileInfo.name,
+                                    path: fileInfo.path,
+                                    data: Array.from(fileData),
+                                    size: fileInfo.size,
+                                    type: fileInfo.type
+                                });
+                                
+                                console.log(`✅ ファイル受信: ${fileInfo.name} (${currentFileIndex + 1}/${folderData.fileCount})`);
+                                currentFileIndex++;
+                                
+                                // 次のファイルへ
+                                receivedData = receivedData.slice(expectedSize);
+                                fileInfo = null;
+                                expectedSize = 0;
+                                
+                                // 全ファイル受信完了チェック
+                                if (currentFileIndex >= folderData.fileCount) {
+                                    handleFolderReceived(folderData);
+                                    socket.end();
+                                }
+                            }
+                        }
                     }
                 });
                 
                 socket.on('end', async () => {
                     if (isMessage) {
                         console.log('✅ メッセージ受信完了');
+                        return;
+                    }
+                    
+                    if (isFolder) {
+                        console.log('✅ フォルダ受信完了');
                         return;
                     }
                     
@@ -925,6 +987,51 @@
             transferServer.listen(TRANSFER_PORT, () => {
                 console.log('✅ TCP転送サーバー起動:', TRANSFER_PORT);
             });
+        }
+        
+        // フォルダ受信完了時の処理
+        async function handleFolderReceived(folderData) {
+            hideProgress();
+            playNotificationSound();
+            
+            console.log('📁 フォルダ受信完了:', folderData.name, '/', folderData.files.length, 'ファイル');
+            
+            // フォルダ保存先を選択
+            const result = await ipcRenderer.invoke('select-folder');
+            
+            if (!result.success) {
+                showToast('フォルダ保存がキャンセルされました', true);
+                return;
+            }
+            
+            const basePath = result.folderPath;
+            const folderPath = `${basePath}/${folderData.name}`;
+            
+            try {
+                // フォルダを作成
+                await ipcRenderer.invoke('create-directory', folderPath);
+                
+                // 各ファイルを保存
+                for (const file of folderData.files) {
+                    const fullPath = `${folderPath}/${file.path}`;
+                    const fileDir = fullPath.substring(0, fullPath.lastIndexOf('/'));
+                    
+                    // サブディレクトリを作成
+                    if (fileDir !== folderPath) {
+                        await ipcRenderer.invoke('create-directory', fileDir);
+                    }
+                    
+                    // ファイルを保存
+                    await ipcRenderer.invoke('save-file-to-path', fullPath, file.data);
+                }
+                
+                showToast(`✅ フォルダ保存完了: ${folderPath}`);
+                alert(`✅ フォルダ受信完了！\n\nフォルダ: ${folderData.name}\n保存先: ${folderPath}\nファイル数: ${folderData.files.length}`);
+                
+            } catch (err) {
+                console.error('❌ フォルダ保存エラー:', err);
+                showToast('❌ フォルダ保存エラー: ' + err.message, true);
+            }
         }
         
         function startBroadcasting() {
@@ -1141,6 +1248,7 @@
             // ドロップされたアイテムを処理
             const items = event.dataTransfer.items;
             const droppedFiles = [];
+            const droppedFolders = [];
             
             if (items) {
                 // DataTransferItemListを使用（フォルダ対応）
@@ -1153,8 +1261,16 @@
                         
                         if (entry) {
                             if (entry.isDirectory) {
-                                // フォルダの場合
-                                promises.push(readDirectoryEntries(entry, entry.name));
+                                // フォルダの場合：フォルダ情報を保持
+                                promises.push(
+                                    readDirectoryEntries(entry, entry.name).then(files => {
+                                        droppedFolders.push({
+                                            name: entry.name,
+                                            files: files,
+                                            isFolder: true
+                                        });
+                                    })
+                                );
                             } else {
                                 // ファイルの場合
                                 const file = item.getAsFile();
@@ -1169,14 +1285,12 @@
                 }
                 
                 // すべてのフォルダ読み込みが完了してから処理
-                Promise.all(promises).then(folderFilesArrays => {
-                    // フォルダ内のファイルを統合
-                    folderFilesArrays.forEach(folderFiles => {
-                        droppedFiles.push(...folderFiles);
-                    });
+                Promise.all(promises).then(() => {
+                    // フォルダとファイルを統合
+                    const allItems = [...droppedFolders, ...droppedFiles];
                     
                     // 送信モーダルを開く
-                    openSendModalWithFiles(ip, peer.name, droppedFiles);
+                    openSendModalWithFiles(ip, peer.name, allItems);
                 });
                 
             } else {
@@ -1209,10 +1323,13 @@
                             if (entry.isFile) {
                                 promises.push(new Promise((resolveFile) => {
                                     entry.file(file => {
+                                        // basePath からフォルダ名を除いた相対パスを作成
+                                        const relativePath = basePath.split('/').slice(1).join('/');
+                                        const fullPath = relativePath ? relativePath + '/' + entry.name : entry.name;
                                         allFiles.push({
                                             file: file,
-                                            path: basePath + '/' + entry.name,
-                                            isFolder: true
+                                            path: fullPath,
+                                            isFolder: false
                                         });
                                         resolveFile();
                                     });
@@ -1304,24 +1421,41 @@
             section.classList.add('has-files');
             
             list.innerHTML = attachedFiles.map((item, index) => {
-                const file = item.file || item;
-                const path = item.path || file.name;
-                const isFolder = item.isFolder || false;
-                const icon = isFolder ? '📁' : '📄';
-                const className = isFolder ? 'file-item folder' : 'file-item';
-                
-                return `
-                    <div class="${className}">
-                        <div class="file-item-info">
-                            <span>${icon}</span>
-                            <div>
-                                <div style="font-weight:bold;">${path}</div>
-                                <div style="font-size:12px;color:#666;">${formatBytes(file.size)}</div>
+                // フォルダの場合
+                if (item.isFolder) {
+                    const totalSize = item.files.reduce((sum, f) => sum + f.file.size, 0);
+                    const fileCount = item.files.length;
+                    
+                    return `
+                        <div class="file-item folder">
+                            <div class="file-item-info">
+                                <span>📁</span>
+                                <div>
+                                    <div style="font-weight:bold;">${item.name}</div>
+                                    <div style="font-size:12px;color:#666;">${fileCount}個のファイル / ${formatBytes(totalSize)}</div>
+                                </div>
                             </div>
+                            <button class="file-remove-btn" onclick="removeAttachedFile(${index}); event.stopPropagation();">×</button>
                         </div>
-                        <button class="file-remove-btn" onclick="removeAttachedFile(${index}); event.stopPropagation();">×</button>
-                    </div>
-                `;
+                    `;
+                } else {
+                    // 通常ファイルの場合
+                    const file = item.file || item;
+                    const fileName = item.path || file.name;
+                    
+                    return `
+                        <div class="file-item">
+                            <div class="file-item-info">
+                                <span>📄</span>
+                                <div>
+                                    <div style="font-weight:bold;">${fileName}</div>
+                                    <div style="font-size:12px;color:#666;">${formatBytes(file.size)}</div>
+                                </div>
+                            </div>
+                            <button class="file-remove-btn" onclick="removeAttachedFile(${index}); event.stopPropagation();">×</button>
+                        </div>
+                    `;
+                }
             }).join('');
         }
         
@@ -1393,7 +1527,7 @@
             const targetName = currentSendTarget.name;
             
             // ファイルを送信前に保存（クリアされるため）
-            const filesToSend = [...attachedFiles];
+            const itemsToSend = [...attachedFiles];
             const textToSend = text;
             
             // 送信前に入力内容をクリア（連続送信可能にするため）
@@ -1405,13 +1539,13 @@
             closeSendModal();
                        
             try {
-                console.log('📤 メッセージ送信開始:', targetName, {
+                console.log('📤 送信開始:', targetName, {
                     textLength: textToSend.length,
-                    fileCount: filesToSend.length
+                    itemCount: itemsToSend.length
                 });
                 
                 // テキストのみの場合
-                if (filesToSend.length === 0) {
+                if (itemsToSend.length === 0) {
                     showProgress('📤 送信中...', 'メッセージを送信しています', 0);
                     await sendMessageData(targetIP, textToSend, [], targetName);
                     hideProgress();
@@ -1420,7 +1554,7 @@
                     return;
                 }
                 
-                // ファイル付きの場合：メッセージを先に送信
+                // メッセージを先に送信
                 if (textToSend) {
                     showProgress('📤 送信中...', 'メッセージを送信しています', 0);
                     await sendMessageData(targetIP, textToSend, [], targetName);
@@ -1428,40 +1562,41 @@
                     await new Promise(resolve => setTimeout(resolve, 500));
                 }
                 
-                // ファイルを1つずつ送信
-                for (let i = 0; i < filesToSend.length; i++) {
-                    const item = filesToSend[i];
-                    const file = item.file || item;
-                    const filePath = item.path || file.name;
+                // ファイル/フォルダを送信
+                for (let i = 0; i < itemsToSend.length; i++) {
+                    const item = itemsToSend[i];
                     
-                    console.log(`📤 ファイル送信 (${i + 1}/${filesToSend.length}):`, file.name);
+                    if (item.isFolder) {
+                        // フォルダを一括送信
+                        console.log(`📁 フォルダ送信 (${i + 1}/${itemsToSend.length}):`, item.name);
+                        await sendFolder(targetIP, item);
+                    } else {
+                        // 通常ファイルを送信
+                        const file = item.file || item;
+                        console.log(`📤 ファイル送信 (${i + 1}/${itemsToSend.length}):`, file.name);
+                        
+                        const arrayBuffer = await readFileAsArrayBuffer(file);
+                        const fileData = Buffer.from(arrayBuffer);
+                        
+                        const fileInfo = {
+                            name: file.name,
+                            path: file.name,
+                            type: file.type,
+                            size: file.size,
+                            isFolder: false
+                        };
+                        
+                        await sendFileBinary(targetIP, fileInfo, fileData);
+                    }
                     
-                    // ファイルをArrayBufferとして読み込む
-                    const arrayBuffer = await readFileAsArrayBuffer(file);
-                    const fileData = Buffer.from(arrayBuffer);
-                    
-                    // ファイル情報を作成
-                    const fileInfo = {
-                        name: file.name,
-                        path: filePath,
-                        type: file.type,
-                        size: file.size,
-                        isFolder: item.isFolder || false
-                    };
-                    
-                    // ファイルを送信
-                    await sendFileBinary(targetIP, fileInfo, fileData);
-                    
-                    // 次のファイルまで少し待つ
-                    if (i < filesToSend.length - 1) {
+                    // 次のアイテムまで少し待つ
+                    if (i < itemsToSend.length - 1) {
                         await new Promise(resolve => setTimeout(resolve, 500));
                     }
                 }
                 
                 hideProgress();
-                console.log('✅ 全ファイル送信完了');
-                
-                // 送信完了トースト表示
+                console.log('✅ 全送信完了');
                 showToast(`✅ ${targetName} に送信完了`);
                 
             } catch (err) {
@@ -1469,6 +1604,91 @@
                 console.error('❌ 送信エラー:', err);
                 showToast('❌ 送信エラー: ' + err.message, true);
             }
+        }
+        
+        // フォルダを一括送信する関数
+        async function sendFolder(targetIP, folderItem) {
+            return new Promise((resolve, reject) => {
+                const client = net.createConnection({ port: TRANSFER_PORT, host: targetIP }, async () => {
+                    console.log('📁 フォルダ送信開始:', targetIP, folderItem.name);
+                    showProgress('📤 送信中...', folderItem.name, 0);
+                    
+                    try {
+                        // フォルダ情報を送信
+                        const folderInfo = {
+                            type: 'folder',
+                            name: folderItem.name,
+                            fileCount: folderItem.files.length,
+                            isFolder: true
+                        };
+                        
+                        const headerJSON = JSON.stringify(folderInfo);
+                        const headerBuffer = Buffer.from(headerJSON, 'utf8');
+                        const headerSize = Buffer.alloc(4);
+                        headerSize.writeUInt32BE(headerBuffer.length, 0);
+                        
+                        client.write(headerSize);
+                        client.write(headerBuffer);
+                        
+                        // 少し待つ
+                        await new Promise(r => setTimeout(r, 100));
+                        
+                        // 各ファイルの情報とデータを送信
+                        let totalSent = 0;
+                        const totalSize = folderItem.files.reduce((sum, f) => sum + f.file.size, 0);
+                        
+                        for (const fileItem of folderItem.files) {
+                            const file = fileItem.file;
+                            const arrayBuffer = await readFileAsArrayBuffer(file);
+                            const fileData = Buffer.from(arrayBuffer);
+                            
+                            // ファイル情報
+                            const fileInfo = {
+                                name: file.name,
+                                path: fileItem.path,
+                                size: file.size,
+                                type: file.type
+                            };
+                            
+                            const fileHeaderJSON = JSON.stringify(fileInfo);
+                            const fileHeaderBuffer = Buffer.from(fileHeaderJSON, 'utf8');
+                            const fileHeaderSize = Buffer.alloc(4);
+                            fileHeaderSize.writeUInt32BE(fileHeaderBuffer.length, 0);
+                            
+                            // ヘッダー送信
+                            client.write(fileHeaderSize);
+                            client.write(fileHeaderBuffer);
+                            
+                            // データ送信
+                            const CHUNK_SIZE = 64 * 1024;
+                            for (let offset = 0; offset < fileData.length; offset += CHUNK_SIZE) {
+                                const chunk = fileData.slice(offset, offset + CHUNK_SIZE);
+                                await new Promise((resolveChunk) => {
+                                    client.write(chunk, () => {
+                                        totalSent += chunk.length;
+                                        updateProgress(totalSent, totalSize, totalSize);
+                                        resolveChunk();
+                                    });
+                                });
+                                await new Promise(r => setTimeout(r, 10));
+                            }
+                        }
+                        
+                        client.end();
+                        console.log('✅ フォルダ送信完了:', folderItem.name);
+                        resolve();
+                        
+                    } catch (err) {
+                        client.destroy();
+                        reject(err);
+                    }
+                });
+                
+                client.on('error', (err) => {
+                    console.error('❌ フォルダ送信エラー:', err);
+                    reject(err);
+                });
+            });
         }
         
         // バイナリファイルを送信する関数
