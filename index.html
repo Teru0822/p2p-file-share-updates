@@ -1106,49 +1106,6 @@
             });
         }
         // フォルダ受信完了時の処理（削除済み - 新しいストリーミング受信では不要）
-        async function handleFolderReceived_OLD(folderData) {
-            hideProgress();
-            playNotificationSound();
-            
-            console.log('📁 フォルダ受信完了:', folderData.name, '/', folderData.files.length, 'ファイル');
-            
-            // フォルダ保存先を選択
-            const result = await ipcRenderer.invoke('select-folder');
-            
-            if (!result.success) {
-                showToast('フォルダ保存がキャンセルされました', true);
-                return;
-            }
-            
-            const basePath = result.folderPath;
-            const folderPath = `${basePath}/${folderData.name}`;
-            
-            try {
-                // フォルダを作成
-                await ipcRenderer.invoke('create-directory', folderPath);
-                
-                // 各ファイルを保存
-                for (const file of folderData.files) {
-                    const fullPath = `${folderPath}/${file.path}`;
-                    const fileDir = fullPath.substring(0, fullPath.lastIndexOf('/'));
-                    
-                    // サブディレクトリを作成
-                    if (fileDir !== folderPath) {
-                        await ipcRenderer.invoke('create-directory', fileDir);
-                    }
-                    
-                    // ファイルを保存
-                    await ipcRenderer.invoke('save-file-to-path', fullPath, file.data);
-                }
-                
-                showToast(`✅ フォルダ保存完了: ${folderPath}`);
-                alert(`✅ フォルダ受信完了！\n\nフォルダ: ${folderData.name}\n保存先: ${folderPath}\nファイル数: ${folderData.files.length}`);
-                
-            } catch (err) {
-                console.error('❌ フォルダ保存エラー:', err);
-                showToast('❌ フォルダ保存エラー: ' + err.message, true);
-            }
-        }
         
         function startBroadcasting() {
             console.log('📡 ブロードキャスト送信開始...');
@@ -1849,59 +1806,6 @@
                                 reject(new Error('受信側の準備タイムアウト'));
                             }
                         }, 30000);
-                        
-                    } catch (err) {
-                        client.destroy();
-                        reject(err);
-                    }
-                });
-                
-                client.on('error', (err) => {
-                    console.error('❌ フォルダ送信エラー:', err);
-                    reject(err);
-                });
-            });
-        }
-                        
-                        for (const fileItem of folderItem.files) {
-                            const file = fileItem.file;
-                            const arrayBuffer = await readFileAsArrayBuffer(file);
-                            const fileData = Buffer.from(arrayBuffer);
-                            
-                            // ファイル情報
-                            const fileInfo = {
-                                name: file.name,
-                                path: fileItem.path,
-                                size: file.size,
-                                type: file.type
-                            };
-                            
-                            const fileHeaderJSON = JSON.stringify(fileInfo);
-                            const fileHeaderBuffer = Buffer.from(fileHeaderJSON, 'utf8');
-                            const fileHeaderSize = Buffer.alloc(4);
-                            fileHeaderSize.writeUInt32BE(fileHeaderBuffer.length, 0);
-                            
-                            // ヘッダー送信
-                            client.write(fileHeaderSize);
-                            client.write(fileHeaderBuffer);
-                            
-                            // データ送信（高速化）
-                            for (let offset = 0; offset < fileData.length; offset += CHUNK_SIZE) {
-                                const chunk = fileData.slice(offset, offset + CHUNK_SIZE);
-                                const canContinue = client.write(chunk);
-                                totalSent += chunk.length;
-                                updateProgress(totalSent, totalSize, totalSize);
-                                
-                                if (!canContinue) {
-                                    // バッファが満杯の場合のみdrainを待つ
-                                    await new Promise(resolve => client.once('drain', resolve));
-                                }
-                            }
-                        }
-                        
-                        client.end();
-                        console.log('✅ フォルダ送信完了:', folderItem.name);
-                        resolve();
                         
                     } catch (err) {
                         client.destroy();
