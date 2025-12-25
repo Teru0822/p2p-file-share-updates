@@ -702,7 +702,7 @@
         // ============================================================================
         // バージョン設定（ここでバージョン番号を一括管理）
         // ============================================================================
-        const APP_VERSION = '1.1.10';
+        const APP_VERSION = '1.1.11'
         const APP_NAME = 'P2Pファイル共有';
         const APP_NAME_ENGLISH = 'P2P File Share';
         
@@ -973,6 +973,7 @@
                             showProgress('📥 保存先を選択してください...', folderData.name, 0);
                             
                             ipcRenderer.invoke('select-folder').then(result => {
+                                console.log('📂 select-folder結果:', result);
                                 if (!result.success) {
                                     socket.end();
                                     hideProgress();
@@ -983,7 +984,9 @@
                                 fs.mkdirSync(saveRoot, { recursive: true });
                                 
                                 console.log('📂 保存先:', saveRoot);
+                                console.log('📥 プログレス更新: 受信中...');
                                 showProgress('📥 受信中...', folderData.name, 0);
+                                console.log('✅ READY送信');
                                 socket.write('READY');
                             });
                         }
@@ -999,6 +1002,7 @@
                                 showProgress('📥 保存先を選択してください...', packet.name, 0);
                                 
                                 ipcRenderer.invoke('save-file', packet.name, []).then(result => {
+                                    console.log('📂 save-file結果:', result);
                                     if (!result.success) {
                                         socket.end();
                                         hideProgress();
@@ -1014,7 +1018,9 @@
                                     };
                                     
                                     console.log('📄 単独ファイル受信開始:', packet.name, packet.size, 'bytes');
+                                    console.log('📥 プログレス更新: 受信中...');
                                     showProgress('📥 受信中...', packet.name, packet.size);
+                                    console.log('✅ READY送信');
                                     socket.write('READY');
                                 });
                             } else {
@@ -2096,11 +2102,13 @@
         }
         
         function showProgress(title, fileName, fileSize) {
+            console.log('🔄 showProgress呼び出し:', title, fileName, fileSize);
             document.getElementById('progressTitle').textContent = title;
             document.getElementById('progressFile').textContent = fileName;
             document.getElementById('progressBar').style.width = '0%';
             document.getElementById('progressBar').textContent = '0%';
             document.getElementById('progressOverlay').classList.add('show');
+            console.log('✅ showProgress完了');
         }
         
         function updateProgress(current, total, fileSize) {
