@@ -20,15 +20,48 @@ function createWindow() {
         }
     });
 
-    // 起動時のオーバーレイ判定 (v3.3.1)
+    // --- バージョン比較と起動パスの決定 ---
+    let useUpdate = false;
+    const bundledPkgPath = path.join(app.getAppPath(), 'package.json');
+
     if (fs.existsSync(LOCAL_PKG) && fs.existsSync(LOCAL_INDEX)) {
-        console.log('✨ アップデート版 (userData/updates) を検出しました。');
+        try {
+            const updatePkg = JSON.parse(fs.readFileSync(LOCAL_PKG, 'utf8'));
+            const bundledPkg = JSON.parse(fs.readFileSync(bundledPkgPath, 'utf8'));
+
+            console.log(`🔎 バージョン比較: UserData(${updatePkg.version}) vs Bundled(${bundledPkg.version})`);
+
+            if (compareVersions(updatePkg.version, bundledPkg.version) > 0) {
+                useUpdate = true;
+            } else {
+                console.log('🧹 本体バージョンの方が新しいため、アップデート版は使用しません。');
+            }
+        } catch (e) {
+            console.error('⚠️ バージョン比較エラー:', e);
+        }
+    }
+
+    if (useUpdate) {
+        console.log('✨ アップデート版 (userData/updates) を起動します。');
         app.effectiveAppPath = UPDATE_DIR;
         mainWindow.loadFile(LOCAL_INDEX);
     } else {
         console.log('🏠 オリジナル版 (AppPath) を起動します。');
         app.effectiveAppPath = app.getAppPath();
         mainWindow.loadFile('index.html');
+    }
+
+    // --- Utilities ---
+    function compareVersions(v1, v2) {
+        const p1 = v1.split('.').map(Number);
+        const p2 = v2.split('.').map(Number);
+        for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
+            const n1 = p1[i] || 0;
+            const n2 = p2[i] || 0;
+            if (n1 > n2) return 1;
+            if (n1 < n2) return -1;
+        }
+        return 0;
     }
 
     console.log('📂 実効アプリケーションパス:', app.effectiveAppPath);
