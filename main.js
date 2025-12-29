@@ -6,6 +6,11 @@ const { spawn } = require('child_process');
 
 let mainWindow;
 
+// --- アップデート関連の定数 ---
+const UPDATE_DIR = path.join(app.getPath('userData'), 'updates');
+const LOCAL_PKG = path.join(UPDATE_DIR, 'package.json');
+const LOCAL_INDEX = path.join(UPDATE_DIR, 'index.html');
+
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1200,
@@ -16,25 +21,27 @@ function createWindow() {
         }
     });
 
-    // --- アップデートディレクトリの優先判定 ---
-    const updateDir = path.join(app.getPath('userData'), 'updates');
-    const localPkg = path.join(updateDir, 'package.json');
-    const localIndex = path.join(updateDir, 'index.html');
-
-    // 起動時に package.json の存在をもってアップデート版と判定する
-    if (fs.existsSync(localPkg) && fs.existsSync(localIndex)) {
-        console.log('✨ アップデート版を検出しました。パス:', updateDir);
-        app.effectiveAppPath = updateDir;
-        mainWindow.loadFile(localIndex);
+    // 起動時にアップデート版（userData側）が存在するかチェック
+    if (fs.existsSync(LOCAL_PKG) && fs.existsSync(LOCAL_INDEX)) {
+        console.log('✨ アップデート版(userData)を検出しました。パス:', UPDATE_DIR);
+        app.effectiveAppPath = UPDATE_DIR;
+        mainWindow.loadFile(LOCAL_INDEX);
     } else {
-        console.log('🏠 オリジナル版を起動します。');
+        console.log('🏠 オリジナル版(AppPath)を起動します。');
         app.effectiveAppPath = app.getAppPath();
         mainWindow.loadFile('index.html');
     }
+
     console.log('📂 実効アプリケーションパス:', app.effectiveAppPath);
 
     // デバッグのため開発者ツールを自動で開く
     mainWindow.webContents.openDevTools();
+
+    mainWindow.on('focus', () => {
+        console.log('🔍 ウィンドウフォーカス: アップデートを確認します');
+        if (mainWindow) mainWindow.webContents.send('window-focused');
+        checkUpdates();
+    });
 
     mainWindow.on('closed', () => {
         mainWindow = null;
@@ -42,21 +49,13 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-    // Windowsで通知を動作させるために必要
     if (process.platform === 'win32') {
         app.setAppUserModelId('com.p2pfileshare.app');
     }
     createWindow();
-
-    // ウィンドウがフォーカスされた時にアップデートを確認
-    mainWindow.on('focus', () => {
-        console.log('🔍 ウィンドウフォーカス: アップデートを確認します');
-        mainWindow.webContents.send('window-focused'); // レンダラーに通知
-        checkUpdates();
-    });
 });
 
-// 定期チェック (5秒)
+// 5秒おきのチェック
 setInterval(checkUpdates, 5000);
 
 let lastUpdateNotified = 0;
@@ -64,10 +63,8 @@ let lastUpdateNotified = 0;
 async function checkUpdates() {
     if (!mainWindow) return;
 
-    // 10秒以内の重複通知は行わない (5秒間隔のチェックに対応)
+    // 10秒以内の重複通知は行わない
     if (Date.now() - lastUpdateNotified < 10000) return;
-
-    console.log('🌐 GitHubに最新バージョンを問い合わせ中...');
 
     const options = {
         hostname: 'api.github.com',
@@ -80,10 +77,7 @@ async function checkUpdates() {
     };
 
     https.get(options, (res) => {
-        if (res.statusCode !== 200) {
-            console.warn(`⚠️ アップデート確認失敗: Status ${res.statusCode}`);
-            return;
-        }
+        if (res.statusCode !== 200) return;
 
         let data = '';
         res.on('data', (chunk) => { data += chunk; });
@@ -94,9 +88,11 @@ async function checkUpdates() {
                 const remotePkg = JSON.parse(content);
                 const remoteVersion = remotePkg.version;
 
-                // 現在のローカルバージョンを物理ファイルから取得
-                const pkgPath = path.join(app.effectiveAppPath || app.getAppPath(), 'package.json');
-                const localPkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+                // 現在動作中のディレクトリから package.json を読み取る
+                const currentPkgPath = path.join(app.effectiveAppPath || app.getAppPath(), 'package.json');
+                if (!fs.existsSync(currentPkgPath)) return;
+
+                const localPkg = JSON.parse(fs.readFileSync(currentPkgPath, 'utf8'));
                 const currentVersion = localPkg.version;
 
                 if (remoteVersion !== currentVersion) {
@@ -115,28 +111,15 @@ async function checkUpdates() {
     });
 }
 
-app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
-});
+// IPC Handlers
 
-app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow();
-    }
-});
-
-// ファイル保存ダイアログ
+// ファイル保存
 ipcMain.handle('save-file', async (event, fileName, fileData) => {
     try {
         const result = await dialog.showSaveDialog({
             defaultPath: fileName,
-            filters: [
-                { name: 'All Files', extensions: ['*'] }
-            ]
+            filters: [{ name: 'All Files', extensions: ['*'] }]
         });
-
         if (!result.canceled && result.filePath) {
             fs.writeFileSync(result.filePath, Buffer.from(fileData));
             return { success: true, filePath: result.filePath };
@@ -147,50 +130,7 @@ ipcMain.handle('save-file', async (event, fileName, fileData) => {
     }
 });
 
-// フォルダ選択ダイアログ
-ipcMain.handle('select-folder', async (event) => {
-    try {
-        const result = await dialog.showOpenDialog({
-            properties: ['openDirectory']
-        });
-
-        if (!result.canceled && result.filePaths.length > 0) {
-            return { success: true, folderPath: result.filePaths[0] };
-        }
-        return { success: false };
-    } catch (err) {
-        return { success: false, error: err.message };
-    }
-});
-
-// ディレクトリ作成
-ipcMain.handle('create-directory', async (event, dirPath) => {
-    try {
-        if (!fs.existsSync(dirPath)) {
-            fs.mkdirSync(dirPath, { recursive: true });
-        }
-        return { success: true };
-    } catch (err) {
-        return { success: false, error: err.message };
-    }
-});
-
-// 指定パスにファイル保存
-ipcMain.handle('save-file-to-path', async (event, filePath, fileData) => {
-    try {
-        const dirPath = path.dirname(filePath);
-        if (!fs.existsSync(dirPath)) {
-            fs.mkdirSync(dirPath, { recursive: true });
-        }
-        fs.writeFileSync(filePath, Buffer.from(fileData));
-        return { success: true, filePath: filePath };
-    } catch (err) {
-        return { success: false, error: err.message };
-    }
-});
-
-// アップデートダウンロード
-// アップデートダウンロードと保存
+// アップデートダウンロード (userData/updates 固定)
 ipcMain.handle('download-update', async (event, url, fileName) => {
     return new Promise((resolve) => {
         https.get(url, (res) => {
@@ -205,69 +145,73 @@ ipcMain.handle('download-update', async (event, url, fileName) => {
                 try {
                     const buffer = Buffer.concat(data);
 
-                    // アップデート先は常に userData/updates に固定する (ASAR問題を回避)
-                    const targetDir = path.join(app.getPath('userData'), 'updates');
-                    const filePath = path.join(targetDir, fileName);
-
-                    if (!fs.existsSync(targetDir)) {
-                        fs.mkdirSync(targetDir, { recursive: true });
+                    if (!fs.existsSync(UPDATE_DIR)) {
+                        fs.mkdirSync(UPDATE_DIR, { recursive: true });
                     }
 
-                    // 確実に新ディレクトリを実効パスとして設定
-                    app.effectiveAppPath = targetDir;
-
-                    // バックアップ作成 (存在する場合)
-                    if (fs.existsSync(filePath)) {
-                        try {
-                            const backupPath = filePath + '.backup';
-                            fs.copyFileSync(filePath, backupPath);
-                            console.log(`📦 バックアップ作成: ${fileName}`);
-                        } catch (e) {
-                            console.warn(`⚠️ バックアップ作成失敗 (継続します): ${e.message}`);
-                        }
-                    }
-
+                    const filePath = path.join(UPDATE_DIR, fileName);
                     fs.writeFileSync(filePath, buffer);
 
-                    // Linux/Mac の場合、実行ファイルなら権限を付与 (main.jsなどの場合)
                     if (process.platform !== 'win32' && (fileName.endsWith('.js') || fileName.endsWith('.sh'))) {
-                        try {
-                            fs.chmodSync(filePath, 0o755);
-                        } catch (e) {
-                            console.warn(`⚠️ chmod失敗: ${e.message}`);
-                        }
+                        try { fs.chmodSync(filePath, 0o755); } catch (e) { }
                     }
 
                     console.log(`✅ アップデート保存完了: ${filePath}`);
                     resolve({ success: true, filePath: filePath });
                 } catch (err) {
                     console.error('❌ 保存エラー:', err);
-                    resolve({ success: false, error: `ファイル保存中にエラーが発生しました: ${err.message}` });
+                    resolve({ success: false, error: err.message });
                 }
             });
         }).on('error', (err) => {
-            resolve({ success: false, error: `通信エラー: ${err.message}` });
+            resolve({ success: false, error: err.message });
         });
     });
 });
 
-// 再起動
 ipcMain.handle('restart-app', async () => {
-    console.log('🔄 アプリを再起動します (relaunch)...');
+    console.log('🔄 アプリを再起動します...');
     app.relaunch();
     app.exit(0);
 });
 
-// ウィンドウを前面に表示
-ipcMain.on('show-window', () => {
-    if (mainWindow) {
-        if (mainWindow.isMinimized()) mainWindow.restore();
-        mainWindow.show();
-        mainWindow.focus();
+ipcMain.handle('get-app-version', async () => {
+    try {
+        const pkgPath = path.join(app.effectiveAppPath || app.getAppPath(), 'package.json');
+        if (fs.existsSync(pkgPath)) {
+            const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+            return pkg.version;
+        }
+    } catch (e) { }
+    return app.getVersion();
+});
+
+// 他の基本的なIPC
+ipcMain.handle('select-folder', async () => {
+    const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
+    return result.canceled ? { success: false } : { success: true, folderPath: result.filePaths[0] };
+});
+
+ipcMain.handle('create-directory', async (event, dirPath) => {
+    try {
+        if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err.message };
     }
 });
 
-// フォルダを開いてファイルを選択
+ipcMain.handle('save-file-to-path', async (event, filePath, fileData) => {
+    try {
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(filePath, Buffer.from(fileData));
+        return { success: true, filePath };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
 ipcMain.handle('show-item-in-folder', async (event, filePath) => {
     try {
         shell.showItemInFolder(filePath);
@@ -277,13 +221,6 @@ ipcMain.handle('show-item-in-folder', async (event, filePath) => {
     }
 });
 
-// 現在のバージョン情報を取得 (オーバーレイ対応)
-ipcMain.handle('get-app-version', async () => {
-    try {
-        const pkgPath = path.join(app.effectiveAppPath || app.getAppPath(), 'package.json');
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-        return pkg.version;
-    } catch (e) {
-        return app.getVersion();
-    }
+app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit();
 });
