@@ -206,7 +206,7 @@ body {
 }
 
 #peerList {
-    max-height: 150px;
+    max-height: 80px;
     overflow-y: auto;
     padding-right: 5px;
     /* スクロールバーの見た目を少し良くする（Webkit系） */
@@ -688,7 +688,7 @@ body {
 
 /* History Styles */
 .history-list {
-    max-height: 200px;
+    max-height: 80px;
     overflow-y: auto;
     background: #f8fafc;
     border-radius: 8px;
