@@ -79,6 +79,14 @@ function createWindow() {
         checkUpdates();
     });
 
+    mainWindow.on('close', (event) => {
+        if (!app.isQuiting) {
+            event.preventDefault();
+            mainWindow.minimize(); // タスクバーに残す（最小化）
+        }
+        return false;
+    });
+
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
