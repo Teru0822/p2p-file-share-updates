@@ -557,6 +557,11 @@ class P2PApp {
 
         // Expose to global for HTML onclick handlers
         this.exposeGlobals();
+
+        // Request Notification Permission
+        if (Notification.permission !== 'granted') {
+            Notification.requestPermission();
+        }
     }
 
     exposeGlobals() {
@@ -658,15 +663,27 @@ class P2PApp {
     }
 
     async performUpdate(newVersion) {
-        // 二重実行防止
+        // 二重実行・重複通知防止
+        if (this.isUpdating) return;
+        if (this.lastNotifiedVersion === newVersion) return;
+        this.lastNotifiedVersion = newVersion;
+
+        console.log(`🔔 アップデート通知を表示: ${newVersion}`);
+
+        const notification = new Notification('✨ アップデートが利用可能です！', {
+            body: `新しいバージョン (${newVersion}) が公開されました。\nクリックして更新を行い、アプリを再起動してください。`,
+            requireInteraction: true // ユーザーがクリックするまで消えない
+        });
+
+        notification.onclick = () => {
+            notification.close();
+            this.executeAutoUpdate(newVersion);
+        };
+    }
+
+    async executeAutoUpdate(newVersion) {
         if (this.isUpdating) return;
         this.isUpdating = true;
-
-        const confirmUpdate = confirm(`✨ 新しいバージョン (${newVersion}) が利用可能です。\n自動的に更新して再起動しますか？`);
-        if (!confirmUpdate) {
-            this.isUpdating = false;
-            return;
-        }
 
         this.ui.showProgress('🚀 アップデート中...', '最新データをダウンロードしています', 100);
 
@@ -694,7 +711,8 @@ class P2PApp {
         this.ui.hideProgress();
 
         if (successCount > 0) {
-            alert(`✅ アップデート完了！ (${newVersion})\nアプリを再起動します。`);
+            // alert(`✅ アップデート完了！ (${newVersion})\nアプリを再起動します。`);
+            // 通知クリックからの流れなので、アラートなしでスムーズに再起動する方がUXが良い
             ipcRenderer.invoke('restart-app');
         } else {
             alert('❌ アップデートに失敗しました。');
