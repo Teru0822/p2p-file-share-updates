@@ -16,20 +16,22 @@ function createWindow() {
         }
     });
 
-    // 書き込み可能なアップデートディレクトリを確認
+    // --- アップデートディレクトリの優先判定 ---
     const updateDir = path.join(app.getPath('userData'), 'updates');
+    const localPkg = path.join(updateDir, 'package.json');
     const localIndex = path.join(updateDir, 'index.html');
 
-    // 起動時に即座に実効パスを確定させる
-    app.effectiveAppPath = fs.existsSync(localIndex) ? updateDir : app.getAppPath();
-    console.log('📂 実効アプリケーションパス:', app.effectiveAppPath);
-
-    if (fs.existsSync(localIndex)) {
-        console.log('✨ アップデート版の index.html を読み込みます:', localIndex);
+    // 起動時に package.json の存在をもってアップデート版と判定する
+    if (fs.existsSync(localPkg) && fs.existsSync(localIndex)) {
+        console.log('✨ アップデート版を検出しました。パス:', updateDir);
+        app.effectiveAppPath = updateDir;
         mainWindow.loadFile(localIndex);
     } else {
+        console.log('🏠 オリジナル版を起動します。');
+        app.effectiveAppPath = app.getAppPath();
         mainWindow.loadFile('index.html');
     }
+    console.log('📂 実効アプリケーションパス:', app.effectiveAppPath);
 
     // デバッグのため開発者ツールを自動で開く
     mainWindow.webContents.openDevTools();
@@ -202,33 +204,17 @@ ipcMain.handle('download-update', async (event, url, fileName) => {
             res.on('end', () => {
                 try {
                     const buffer = Buffer.concat(data);
-                    // main.js で事前に決定された effectiveAppPath を使用する
-                    // これにより、起動時に読み込んだディレクトリと同じ場所に保存される
-                    const targetDir = app.effectiveAppPath || app.getAppPath();
+
+                    // アップデート先は常に userData/updates に固定する (ASAR問題を回避)
+                    const targetDir = path.join(app.getPath('userData'), 'updates');
                     const filePath = path.join(targetDir, fileName);
 
-                    // 保存先ディレクトリの存在確認と権限チェック
                     if (!fs.existsSync(targetDir)) {
                         fs.mkdirSync(targetDir, { recursive: true });
                     }
 
-                    try {
-                        fs.accessSync(targetDir, fs.constants.W_OK | fs.constants.R_OK);
-                    } catch (e) {
-                        // もし currentDir が書き込み不可なら、再判定してuserDataへ切り替える
-                        if (targetDir === app.getAppPath()) {
-                            const userUpdateDir = path.join(app.getPath('userData'), 'updates');
-                            if (!fs.existsSync(userUpdateDir)) fs.mkdirSync(userUpdateDir, { recursive: true });
-                            app.effectiveAppPath = userUpdateDir;
-                            // 再帰的にパスを再設定
-                            const newFilePath = path.join(userUpdateDir, fileName);
-                            fs.writeFileSync(newFilePath, buffer);
-                            resolve({ success: true, filePath: newFilePath });
-                            return;
-                        }
-                        resolve({ success: false, error: `保存先に書き込み権限がありません: ${targetDir}` });
-                        return;
-                    }
+                    // 確実に新ディレクトリを実効パスとして設定
+                    app.effectiveAppPath = targetDir;
 
                     // バックアップ作成 (存在する場合)
                     if (fs.existsSync(filePath)) {
