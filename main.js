@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
@@ -26,7 +26,13 @@ function createWindow() {
     });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+    // Windowsで通知を動作させるために必要
+    if (process.platform === 'win32') {
+        app.setAppUserModelId('com.p2pfileshare.app');
+    }
+    createWindow();
+});
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
@@ -161,4 +167,23 @@ ipcMain.handle('restart-app', async () => {
     setTimeout(() => {
         app.quit();
     }, 1000);
+});
+
+// ウィンドウを前面に表示
+ipcMain.on('show-window', () => {
+    if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+    }
+});
+
+// フォルダを開いてファイルを選択
+ipcMain.handle('show-item-in-folder', async (event, filePath) => {
+    try {
+        shell.showItemInFolder(filePath);
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
 });

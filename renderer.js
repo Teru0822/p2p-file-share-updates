@@ -525,6 +525,18 @@ class P2PApp {
             onFileSaved: (result, name) => {
                 Utils.playNotificationSound();
                 if (result.success) {
+                    // システム通知を表示
+                    const notification = new Notification('📄 ファイルを受信しました', {
+                        body: `ファイル: ${name}\n保存先: ${result.filePath}`,
+                        icon: 'assets/icon.png' // アイコンがあれば
+                    });
+
+                    // クリックで保存先フォルダを開く
+                    notification.onclick = () => {
+                        ipcRenderer.invoke('show-item-in-folder', result.filePath);
+                        window.focus();
+                    };
+
                     alert(`✅ ファイル受信完了！\n\nファイル: ${name}\n保存先: ${result.filePath}`);
                 }
             },
@@ -841,21 +853,32 @@ class P2PApp {
     // --- Receive Logic ---
     handleMessageReceived(info) {
         Utils.playNotificationSound();
+
+        // 履歴に追加
+        let details = info.text || '';
+        if (info.files && info.files.length > 0) {
+            const fileSummary = info.files.length === 1 ? info.files[0].name : `${info.files.length}個のファイル`;
+            details = details ? `${details} (📎 ${fileSummary})` : `📎 ${fileSummary}`;
+        }
+        if (!details) details = '（メッセージなし）';
+
+        this.history.addLog('receive', info.from, details);
+
+        // システム通知を表示
+        const notification = new Notification('📨 メッセージが届きました', {
+            body: `From: ${info.from}\n${info.text || (info.files ? 'ファイルが添付されています' : '')}`,
+        });
+
+        notification.onclick = () => {
+            ipcRenderer.send('show-window'); // メインプロセスにウィンドウ表示を依頼
+            window.focus();
+            this.ui.toggleModal('receivedModal', true);
+        };
+
         this.ui.els.receivedFrom.textContent = `From: ${info.from}`;
         this.ui.els.receivedMessageBody.textContent = info.text || '（メッセージなし）';
 
         this.receivedFilesData = info.files || [];
-
-        // 履歴に追加
-        let details = info.text || '';
-        if (this.receivedFilesData.length > 0) {
-            const fileSummary = this.receivedFilesData.length === 1 ? this.receivedFilesData[0].name : `${this.receivedFilesData.length}個のファイル`;
-            details = details ? `${details} (📎 ${fileSummary})` : `📎 ${fileSummary}`;
-        }
-        if (!details) details = '（メッセージなし）'; // 空の場合
-
-        this.history.addLog('receive', info.from, details);
-
         this.renderReceivedFiles(this.receivedFilesData);
         this.ui.toggleModal('receivedModal', true);
     }
