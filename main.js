@@ -18,9 +18,6 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
 
-    // 開発者ツールを自動で開く
-    mainWindow.webContents.openDevTools();
-
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
