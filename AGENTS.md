@@ -38,8 +38,12 @@ WindowsのPowerShell環境でコマンドを実行する際、以下のルール
    - `main.js`: `download-update` ハンドラで自身のリソース（`app.getAppPath()`）を直接上書き。
    - **注意**: ファイルパスの取得に `process.execPath` の横を期待してはいけません。必ず `app.getAppPath()` を起点にしてください。
 
-3. **バージョン管理**:
-   - 機能をプッシュする際は、必ず `package.json` の `version` をインクリメントしてください。これにより、全ユーザーに自動更新（通知）が配信されます。
+3. **リリース手順 (自動化)**:
+   - `package.json` の `version` を更新して `main` ブランチにプッシュするだけで、GitHub Actions が自動的に以下の処理を行います：
+     - `package.json` からバージョンを取得。
+     - 対応する Git タグ（例: `v2.4.5`）を自動作成。
+     - Windows/Linux 用のインストーラーをビルドし、GitHub Release を作成・アップロード。
+   - **注意**: タグを手動で打つ必要はもうありません。`package.json` の更新がリリースのトリガーになります。
 
 ## 📡 ネットワーク仕様
 - **UDPポート (Search)**: 45678 (Broadcast用)
