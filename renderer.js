@@ -571,7 +571,15 @@ class P2PApp {
 
         // Event Listeners
         this.setupEventListeners();
-        this.startUpdateLoop();
+
+        // メインプロセスからのアップデート通知を待機
+        ipcRenderer.on('update-available', (event, version) => {
+            console.log('🚀 メインプロセスよりアップデート通知を受信:', version);
+            this.performUpdate(version);
+        });
+
+        // ピアリストの定期更新のみ残す
+        setInterval(() => this.updatePeerListUI(), 1000);
 
         // Expose to global for HTML onclick handlers
         this.exposeGlobals();
@@ -637,6 +645,8 @@ class P2PApp {
         this.ui.renderPeerList(peers, this.selectedPeers);
     }
 
+    // レンダラー側でのループは廃止 (メインプロセスが管理)
+    /*
     startUpdateLoop() {
         setInterval(() => this.updatePeerListUI(), 1000); // Check timeouts
 
@@ -681,6 +691,7 @@ class P2PApp {
             console.error('Update check failed:', err);
         }
     }
+    */
 
     compareVersions(v1, v2) {
         const p1 = v1.split('.').map(Number);

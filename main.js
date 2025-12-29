@@ -42,7 +42,62 @@ app.whenReady().then(() => {
         app.setAppUserModelId('com.p2pfileshare.app');
     }
     createWindow();
+
+    // ウィンドウがフォーカスされた時にアップデートを確認
+    mainWindow.on('focus', () => {
+        console.log('🔍 ウィンドウフォーカス: アップデートを確認します');
+        checkUpdates();
+    });
 });
+
+// 定期チェック (30秒に緩和しつつ、フォーカス時で補完)
+setInterval(checkUpdates, 30000);
+
+async function checkUpdates() {
+    if (!mainWindow) return;
+
+    const options = {
+        hostname: 'api.github.com',
+        path: '/repos/Teru0822/p2p-file-share-updates/contents/package.json',
+        headers: {
+            'User-Agent': 'P2P-File-Share-App',
+            'Accept': 'application/vnd.github.v3+json',
+            'Cache-Control': 'no-cache'
+        }
+    };
+
+    https.get(options, (res) => {
+        if (res.statusCode !== 200) {
+            console.warn(`⚠️ アップデート確認失敗: Status ${res.statusCode}`);
+            return;
+        }
+
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+            try {
+                const json = JSON.parse(data);
+                const content = Buffer.from(json.content, 'base64').toString();
+                const remotePkg = JSON.parse(content);
+                const remoteVersion = remotePkg.version;
+
+                // 現在のローカルバージョンを物理ファイルから取得
+                const pkgPath = path.join(app.effectiveAppPath || app.getAppPath(), 'package.json');
+                const localPkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+                const currentVersion = localPkg.version;
+
+                if (remoteVersion !== currentVersion) {
+                    console.log(`🚀 新バージョン検出: ${currentVersion} -> ${remoteVersion}`);
+                    mainWindow.webContents.send('update-available', remoteVersion);
+                }
+            } catch (e) {
+                console.error('❌ 解析エラー:', e.message);
+            }
+        });
+    }).on('error', (e) => {
+        console.error('❌ 通信エラー:', e.message);
+    });
+}
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
