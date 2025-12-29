@@ -117,7 +117,7 @@ function createTray() {
         }
     ]);
 
-    tray.setToolTip('P2P File Share');
+    tray.setToolTip('ProxiPass');
     tray.setContextMenu(contextMenu);
 
     tray.on('click', () => {
