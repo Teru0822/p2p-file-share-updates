@@ -16,7 +16,16 @@ function createWindow() {
         }
     });
 
-    mainWindow.loadFile('index.html');
+    // 書き込み可能なアップデートディレクトリを確認
+    const updateDir = path.join(app.getPath('userData'), 'updates');
+    const localIndex = path.join(updateDir, 'index.html');
+
+    if (fs.existsSync(localIndex)) {
+        console.log('✨ アップデート版の index.html を読み込みます:', localIndex);
+        mainWindow.loadFile(localIndex);
+    } else {
+        mainWindow.loadFile('index.html');
+    }
 
     mainWindow.on('closed', () => {
         mainWindow = null;
@@ -120,16 +129,22 @@ ipcMain.handle('download-update', async (event, url, fileName) => {
             res.on('end', () => {
                 try {
                     const buffer = Buffer.concat(data);
-                    const targetDir = app.getAppPath();
-                    const filePath = path.join(targetDir, fileName);
+                    let targetDir = app.getAppPath();
 
                     // 書き込み権限チェック
+                    let isWritable = true;
                     try {
                         fs.accessSync(targetDir, fs.constants.W_OK);
                     } catch (e) {
-                        resolve({ success: false, error: `ディレクトリに書き込み権限がありません: ${targetDir}` });
-                        return;
+                        isWritable = false;
+                        console.log(`⚠️ インストール先 ${targetDir} に書き込み権限がありません。userDataを使用します。`);
+                        targetDir = path.join(app.getPath('userData'), 'updates');
+                        if (!fs.existsSync(targetDir)) {
+                            fs.mkdirSync(targetDir, { recursive: true });
+                        }
                     }
+
+                    const filePath = path.join(targetDir, fileName);
 
                     // バックアップ作成 (存在する場合)
                     if (fs.existsSync(filePath)) {
