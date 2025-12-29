@@ -31,6 +31,9 @@ function createWindow() {
         mainWindow.loadFile('index.html');
     }
 
+    // デバッグのため開発者ツールを自動で開く
+    mainWindow.webContents.openDevTools();
+
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
