@@ -30,12 +30,16 @@
                 </div>
             </div>
 
-            <div class="card">
-                <h3 style="margin-bottom: 20px;">🌐 ネットワーク上のデバイス (<span id="peerCount">0</span>台)</h3>
-                <div id="peerList">
-                    <div class="empty-state">
-                        <div class="empty-icon">🔍</div>
-                        <div>ネットワークをスキャンしています...</div>
+            <div class="card" style="margin-top: 20px;">
+                <div class="header" style="margin-bottom: 10px;">
+                    <h3>📜 送受信履歴</h3>
+                    <button class="btn-secondary" style="padding: 4px 8px; font-size: 12px;"
+                        onclick="app.clearHistory()">クリア</button>
+                </div>
+                <div id="historyList" class="history-list">
+                    <div class="empty-state" style="padding: 20px;">
+                        <div style="font-size: 20px; margin-bottom: 5px;">📝</div>
+                        <div>履歴はありません</div>
                     </div>
                 </div>
             </div>

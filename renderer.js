@@ -437,6 +437,72 @@ class UIManager {
     }
 }
 
+// --- History Manager Class ---
+class HistoryManager {
+    constructor() {
+        this.history = JSON.parse(localStorage.getItem('p2p_history') || '[]');
+        this.container = document.getElementById('historyList');
+    }
+
+    addLog(type, targetName, details) {
+        const log = {
+            type: type, // 'send' or 'receive'
+            target: targetName,
+            details: details,
+            timestamp: Date.now()
+        };
+        this.history.unshift(log);
+        if (this.history.length > 50) this.history.pop();
+        this.save();
+        this.render();
+    }
+
+    save() {
+        localStorage.setItem('p2p_history', JSON.stringify(this.history));
+    }
+
+    clear() {
+        if (confirm('履歴をすべて削除しますか？')) {
+            this.history = [];
+            this.save();
+            this.render();
+        }
+    }
+
+    render() {
+        if (this.history.length === 0) {
+            this.container.innerHTML = `
+                <div class="empty-state" style="padding: 20px;">
+                    <div style="font-size: 20px; margin-bottom: 5px;">📝</div>
+                    <div>履歴はありません</div>
+                </div>`;
+            return;
+        }
+
+        this.container.innerHTML = this.history.map(log => {
+            const isSend = log.type === 'send';
+            const badgeClass = isSend ? 'badge-send' : 'badge-receive';
+            const badgeText = isSend ? '送信' : '受信';
+            const timeStr = new Date(log.timestamp).toLocaleString('ja-JP', {
+                month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            });
+
+            return `
+                <div class="history-item">
+                    <div class="history-content">
+                        <div class="history-header">
+                            <span class="history-badge ${badgeClass}">${badgeText}</span>
+                            <span class="history-target">${isSend ? 'To: ' : 'From: '} ${log.target}</span>
+                        </div>
+                        <div class="history-detail">${log.details}</div>
+                    </div>
+                    <div class="history-time">${timeStr}</div>
+                </div>
+            `;
+        }).join('');
+    }
+}
+
 // --- Main Application ---
 class P2PApp {
     constructor() {
@@ -449,6 +515,7 @@ class P2PApp {
         this.currentSendTarget = null;
 
         this.ui = new UIManager();
+        this.history = new HistoryManager(); // Init History
         this.network = new NetworkManager({
             onPeerDiscovered: (name, ip) => this.handlePeerDiscovered(name, ip),
             onMessageReceived: (fileInfo) => this.handleMessageReceived(fileInfo),
@@ -479,6 +546,7 @@ class P2PApp {
         // Initial UI State
         this.ui.els.myName.textContent = this.myName;
         this.ui.els.statusText.textContent = `待機中 (${this.myIP})`;
+        this.history.render(); // Render initial history
 
         // Start Network
         this.network.init(this.myName, this.myIP);
@@ -712,6 +780,14 @@ class P2PApp {
 
             await this.network.sendMessageData(ip, text, filesData, name);
 
+            // 履歴に追加
+            let details = text;
+            if (filesData.length > 0) {
+                const fileSummary = filesData.length === 1 ? filesData[0].name : `${filesData.length}個のファイル`;
+                details = text ? `${text} (📎 ${fileSummary})` : `📎 ${fileSummary}`;
+            }
+            this.history.addLog('send', name, details);
+
             this.ui.hideProgress();
             alert('✅ 送信完了！');
         } catch (err) {
@@ -751,6 +827,17 @@ class P2PApp {
         this.ui.els.receivedMessageBody.textContent = info.text || '（メッセージなし）';
 
         this.receivedFilesData = info.files || [];
+
+        // 履歴に追加
+        let details = info.text || '';
+        if (this.receivedFilesData.length > 0) {
+            const fileSummary = this.receivedFilesData.length === 1 ? this.receivedFilesData[0].name : `${this.receivedFilesData.length}個のファイル`;
+            details = details ? `${details} (📎 ${fileSummary})` : `📎 ${fileSummary}`;
+        }
+        if (!details) details = '（メッセージなし）'; // 空の場合
+
+        this.history.addLog('receive', info.from, details);
+
         this.renderReceivedFiles(this.receivedFilesData);
         this.ui.toggleModal('receivedModal', true);
     }
@@ -906,6 +993,10 @@ class P2PApp {
     cancelTransfer() {
         this.network.cancelTransfer();
         this.ui.hideProgress();
+    }
+
+    clearHistory() {
+        this.history.clear();
     }
 }
 
