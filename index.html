@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2Pファイル共有</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <div>
+                    <div class="title">📡 P2Pファイル共有 </div>
+                    <div class="subtitle" id="statusText">待機中...</div>
+                </div>
+                <div class="status">
+                    <div class="status-dot"></div>
+                    <span>LAN検索中</span>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <div class="info-label">💻 あなたのPC名</div>
+                <div class="info-value">
+                    <span id="myName">Loading...</span>
+                    <button class="edit-btn" onclick="app.openNameModal()">✏️ 編集</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom: 20px;">🌐 ネットワーク上のデバイス (<span id="peerCount">0</span>台)</h3>
+                <div id="peerList">
+                    <div class="empty-state">
+                        <div class="empty-icon">🔍</div>
+                        <div>ネットワークをスキャンしています...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="send-bar" id="sendBar">
+        <div class="send-bar-info">
+            <span id="selectedCount">0人</span>選択中
+        </div>
+        <button class="btn-primary" onclick="app.sendToSelected()">📤 選択したデバイスに送信</button>
+        <button class="btn-secondary" onclick="app.clearSelection()">選択解除</button>
+    </div>
+
+    <div class="progress-overlay" id="progressOverlay">
+        <div class="progress-box">
+            <div class="progress-title" id="progressTitle">📤 送信中...</div>
+            <div class="progress-file" id="progressFile"></div>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar">0%</div>
+            </div>
+            <div id="progressText" style="color: #666; margin-top: 10px;"></div>
+            <button class="cancel-btn" onclick="app.cancelTransfer()">キャンセル</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="nameModal">
+        <div class="modal-box">
+            <div class="modal-title">💻 PC名の変更</div>
+            <input type="text" id="nameInput" class="modal-input" placeholder="PC名を入力" maxlength="30">
+            <div class="name-modal-buttons">
+                <button class="name-modal-btn name-modal-btn-secondary" onclick="app.closeNameModal()">キャンセル</button>
+                <button class="name-modal-btn name-modal-btn-primary" onclick="app.saveName()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="sendModal" class="send-modal">
+        <div class="modal-content">
+            <div class="modal-header" id="sendModalTitle">メッセージ送信</div>
+            <textarea id="messageInput" class="message-input" placeholder="メッセージを入力（任意）..."></textarea>
+
+            <div class="file-attach-section" id="fileAttachSection" ondragover="app.handleFileAttachDragOver(event)"
+                ondragleave="app.handleFileAttachDragLeave(event)" ondrop="app.handleFileAttachDrop(event)">
+                <div class="attach-buttons">
+                    <button class="attach-btn attach-btn-file"
+                        onclick="document.getElementById('attachFileInput').click()">
+                        📄 ファイルを選択
+                    </button>
+                    <button class="attach-btn attach-btn-folder"
+                        onclick="document.getElementById('attachFolderInput').click()">
+                        📁 フォルダを選択
+                    </button>
+                </div>
+                <div id="fileAttachPlaceholder" style="font-size:12px;color:#999;">
+                    またはここにドラッグ&ドロップ
+                </div>
+                <div class="file-list" id="attachedFileList" style="display: none;"></div>
+            </div>
+
+            <div class="modal-buttons">
+                <button class="modal-btn cancel" onclick="app.closeSendModal()">キャンセル</button>
+                <button class="modal-btn action" onclick="app.sendMessage()">送信</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="receivedModal" class="received-modal">
+        <div class="modal-content">
+            <div class="modal-header">📨 メッセージ受信</div>
+            <div class="received-from" id="receivedFrom">From: </div>
+            <div class="received-message-body" id="receivedMessageBody"></div>
+            <div class="received-files" id="receivedFiles"></div>
+            <div class="modal-buttons">
+                <button class="modal-btn cancel" onclick="app.closeReceivedModal()">閉じる</button>
+                <button class="modal-btn action" onclick="app.copyReceivedMessage()">📋 コピー</button>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" style="display: none;" multiple>
+    <input type="file" id="attachFileInput" style="display: none;" multiple>
+    <input type="file" id="attachFolderInput" style="display: none;" webkitdirectory directory multiple>
+
+    <script src="renderer.js"></script>
+</body>
+
+</html>

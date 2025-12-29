@@ -1,0 +1,1626 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2Pファイル共有</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        .title { font-size: 28px; font-weight: bold; color: #333; }
+        .subtitle { color: #666; font-size: 14px; margin-top: 5px; }
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            background: #f0f9ff;
+            border-radius: 10px;
+        }
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #22c55e;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        
+        .info-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            color: white;
+        }
+        .info-label { font-size: 14px; opacity: 0.9; margin-bottom: 8px; }
+        .info-value {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: monospace;
+            font-size: 18px;
+            font-weight: bold;
+            background: rgba(255,255,255,0.2);
+            padding: 12px 16px;
+            border-radius: 10px;
+        }
+        .edit-btn {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .edit-btn:hover { background: #f0f0f0; }
+        
+        .peer-item {
+            display: flex;
+            align-items: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            color: white;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+            position: relative;
+        }
+        .peer-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+        .peer-item.drag-over {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            transform: scale(1.02);
+        }
+        .peer-item.drag-over::after {
+            content: '📁 ここにドロップ';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            font-weight: bold;
+            pointer-events: none;
+        }
+        .peer-checkbox {
+            width: 24px;
+            height: 24px;
+            margin-right: 15px;
+            cursor: pointer;
+        }
+        .peer-info { 
+            display: flex; 
+            align-items: center; 
+            gap: 15px; 
+            flex: 1;
+        }
+        .peer-avatar {
+            width: 50px;
+            height: 50px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+        .peer-name { font-weight: bold; font-size: 18px; }
+        .peer-ip { font-size: 12px; opacity: 0.8; font-family: monospace; }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-send { 
+            background: rgba(255,255,255,0.3); 
+            color: white;
+        }
+        .btn-send:hover { background: rgba(255,255,255,0.5); }
+        
+        .send-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            padding: 20px;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.2);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            z-index: 999;
+        }
+        .send-bar.show { display: flex; }
+        .send-bar-info { font-weight: bold; color: #333; }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn-primary:hover { background: #5568d3; }
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #333;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn-secondary:hover { background: #d1d5db; }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        .empty-icon { font-size: 64px; margin-bottom: 20px; }
+        
+        .send-modal, .received-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+        .send-modal.active, .received-modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .received-from {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        .message-input {
+            width: 100%;
+            min-height: 100px;
+            padding: 15px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            margin-bottom: 15px;
+        }
+        .message-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .file-attach-section {
+            border: 2px dashed #e5e7eb;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+        .file-attach-section:hover {
+            border-color: #667eea;
+            background: #f9fafb;
+        }
+        .file-attach-section.has-files {
+            border-color: #10b981;
+            background: #f0fdf4;
+        }
+        .attach-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+        .attach-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .attach-btn-file {
+            background: #667eea;
+            color: white;
+        }
+        .attach-btn-file:hover {
+            background: #5568d3;
+        }
+        .attach-btn-folder {
+            background: #10b981;
+            color: white;
+        }
+        .attach-btn-folder:hover {
+            background: #059669;
+        }
+        .file-list {
+            margin-top: 15px;
+            text-align: left;
+        }
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        .file-item.folder {
+            background: #f0fdf4;
+        }
+        .file-item-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+        }
+        .file-remove-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .file-remove-btn:hover {
+            background: #dc2626;
+        }
+        .received-message-body {
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: inherit;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .received-files {
+            margin-top: 15px;
+        }
+        .received-file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            background: #f0f9ff;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        .received-file-save-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .received-file-save-btn:hover {
+            background: #5568d3;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        .modal-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .modal-btn.cancel {
+            background: #e5e7eb;
+            color: #333;
+        }
+        .modal-btn.action {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .modal-btn:hover {
+            transform: translateY(-2px);
+        }
+        .progress-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        .progress-overlay.show { display: flex; }
+        .progress-box {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            min-width: 400px;
+            text-align: center;
+        }
+        .progress-title { font-size: 24px; font-weight: bold; margin-bottom: 10px; }
+        .progress-file { color: #666; margin-bottom: 20px; word-break: break-all; }
+        .progress-bar-container {
+            width: 100%;
+            height: 30px;
+            background: #e5e7eb;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .cancel-btn {
+            margin-top: 20px;
+            width: 100%;
+            padding: 12px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .cancel-btn:hover { background: #dc2626; }
+        
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 3000;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal-box {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            min-width: 400px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .modal-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .modal-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        .modal-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .name-modal-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .name-modal-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .name-modal-btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .name-modal-btn-primary:hover { background: #5568d3; }
+        .name-modal-btn-secondary {
+            background: #e5e7eb;
+            color: #333;
+        }
+        .name-modal-btn-secondary:hover { background: #d1d5db; }
+        
+        .update-banner {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #22c55e;
+            color: white;
+            padding: 15px 50px 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(34, 197, 94, 0.3);
+            cursor: pointer;
+            z-index: 4000;
+            animation: slideIn 0.3s;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(400px); }
+            to { transform: translateX(0); }
+        }
+        .update-banner:hover { background: #16a34a; }
+        .update-banner-close {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0;
+            width: 25px;
+            height: 25px;
+            line-height: 25px;
+            text-align: center;
+        }
+        .update-banner-close:hover { opacity: 0.7; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <div>
+                    <div class="title">📡 P2Pファイル共有 v2.3.0</div>
+                    <div class="subtitle" id="statusText">待機中...</div>
+                </div>
+                <div class="status">
+                    <div class="status-dot"></div>
+                    <span>LAN検索中</span>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <div class="info-label">💻 あなたのPC名</div>
+                <div class="info-value">
+                    <span id="myName">Loading...</span>
+                    <button class="edit-btn" onclick="openNameModal()">✏️ 編集</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom: 20px;">🌐 ネットワーク上のデバイス (<span id="peerCount">0</span>台)</h3>
+                <div id="peerList">
+                    <div class="empty-state">
+                        <div class="empty-icon">🔍</div>
+                        <div>ネットワークをスキャンしています...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="send-bar" id="sendBar">
+        <div class="send-bar-info">
+            <span id="selectedCount">0人</span>選択中
+        </div>
+        <button class="btn-primary" onclick="sendToSelected()">📤 選択したデバイスに送信</button>
+        <button class="btn-secondary" onclick="clearSelection()">選択解除</button>
+    </div>
+
+    <div class="progress-overlay" id="progressOverlay">
+        <div class="progress-box">
+            <div class="progress-title" id="progressTitle">📤 送信中...</div>
+            <div class="progress-file" id="progressFile"></div>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar">0%</div>
+            </div>
+            <div id="progressText" style="color: #666; margin-top: 10px;"></div>
+            <button class="cancel-btn" onclick="cancelTransfer()">キャンセル</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="nameModal">
+        <div class="modal-box">
+            <div class="modal-title">💻 PC名の変更</div>
+            <input type="text" id="nameInput" class="modal-input" placeholder="PC名を入力" maxlength="30">
+            <div class="name-modal-buttons">
+                <button class="name-modal-btn name-modal-btn-secondary" onclick="closeNameModal()">キャンセル</button>
+                <button class="name-modal-btn name-modal-btn-primary" onclick="saveName()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="sendModal" class="send-modal">
+        <div class="modal-content">
+            <div class="modal-header" id="sendModalTitle">メッセージ送信</div>
+            <textarea id="messageInput" class="message-input" placeholder="メッセージを入力（任意）..."></textarea>
+            
+            <div class="file-attach-section" id="fileAttachSection"
+                 ondragover="handleFileAttachDragOver(event)"
+                 ondragleave="handleFileAttachDragLeave(event)"
+                 ondrop="handleFileAttachDrop(event)">
+                <div class="attach-buttons">
+                    <button class="attach-btn attach-btn-file" onclick="document.getElementById('attachFileInput').click()">
+                        📄 ファイルを選択
+                    </button>
+                    <button class="attach-btn attach-btn-folder" onclick="document.getElementById('attachFolderInput').click()">
+                        📁 フォルダを選択
+                    </button>
+                </div>
+                <div id="fileAttachPlaceholder" style="font-size:12px;color:#999;">
+                    またはここにドラッグ&ドロップ
+                </div>
+                <div class="file-list" id="attachedFileList" style="display: none;"></div>
+            </div>
+            
+            <div class="modal-buttons">
+                <button class="modal-btn cancel" onclick="closeSendModal()">キャンセル</button>
+                <button class="modal-btn action" onclick="sendMessage()">送信</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="receivedModal" class="received-modal">
+        <div class="modal-content">
+            <div class="modal-header">📨 メッセージ受信</div>
+            <div class="received-from" id="receivedFrom">From: </div>
+            <div class="received-message-body" id="receivedMessageBody"></div>
+            <div class="received-files" id="receivedFiles"></div>
+            <div class="modal-buttons">
+                <button class="modal-btn cancel" onclick="closeReceivedModal()">閉じる</button>
+                <button class="modal-btn action" onclick="copyReceivedMessage()">📋 コピー</button>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" style="display: none;" multiple>
+    <input type="file" id="attachFileInput" style="display: none;" multiple>
+    <input type="file" id="attachFolderInput" style="display: none;" webkitdirectory directory multiple>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        const os = require('os');
+        const dgram = require('dgram');
+        const net = require('net');
+        const https = require('https');
+        
+        const VERSION_INFO = {
+            version: '1.0.2',
+            changelog: [
+                '✅ IPMessenger風の自動デバイス検出',
+                '✅ PC名の自由編集＆即時反映',
+                '✅ チェックボックスで複数選択送信',
+                '✅ ドラッグ&ドロップでファイル送信',
+                '📤 統合送信ボタン（テキスト+ファイル同時送信）',
+                '📁 フォルダごと送信・受信機能',
+                '💾 フォルダ構造を保持して保存',
+                '📎 複数ファイル添付対応',
+                '🔔 受信時に通知音「ぴこん」',
+                '🔄 自動アップデート機能'
+            ]
+        };
+        
+        const CURRENT_VERSION = VERSION_INFO.version;
+        const BROADCAST_PORT = 45678;
+        const TRANSFER_PORT = 45679;
+        const BROADCAST_INTERVAL = 3000;
+        const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000;
+        
+        let myName = localStorage.getItem('p2p_pc_name') || os.hostname() || 'Unknown PC';
+        let myIP = getLocalIP();
+        let discoveredPeers = new Map();
+        let selectedPeers = new Set();
+        let broadcastSocket;
+        let transferServer;
+        let currentTransfer = null;
+        let currentSendTarget = null;
+        let attachedFiles = [];
+        let receivedFilesData = [];
+        
+        function getLocalIP() {
+            const interfaces = os.networkInterfaces();
+            for (const name of Object.keys(interfaces)) {
+                for (const iface of interfaces[name]) {
+                    if (iface.family === 'IPv4' && !iface.internal) {
+                        return iface.address;
+                    }
+                }
+            }
+            return '127.0.0.1';
+        }
+        
+        function init() {
+            console.log('='.repeat(70));
+            console.log('🚀 P2P File Share v' + CURRENT_VERSION + ' 起動');
+            console.log('='.repeat(70));
+            console.log('💻 PC名:', myName);
+            console.log('🌐 IP:', myIP);
+            console.log('='.repeat(70));
+            
+            localStorage.setItem('app_version', CURRENT_VERSION);
+            
+            document.getElementById('myName').textContent = myName;
+            document.getElementById('statusText').textContent = `待機中 (${myIP})`;
+            
+            setupBroadcast();
+            setupTransferServer();
+            startBroadcasting();
+            
+            document.getElementById('nameInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') saveName();
+            });
+            
+            document.getElementById('attachFileInput').addEventListener('change', (e) => {
+                const files = Array.from(e.target.files);
+                attachedFiles = [...attachedFiles, ...files];
+                updateAttachedFileList();
+                e.target.value = '';
+            });
+            
+            document.getElementById('attachFolderInput').addEventListener('change', (e) => {
+                const files = Array.from(e.target.files);
+                console.log('📁 フォルダ選択:', files.length, '個のファイル');
+                
+                const folderFiles = files.map(file => ({
+                    file: file,
+                    path: (file.webkitRelativePath || file.name).replace(/\\/g, '/'),
+                    isFolder: true
+                }));
+                
+                attachedFiles = [...attachedFiles, ...folderFiles];
+                updateAttachedFileList();
+                e.target.value = '';
+            });
+            
+            setTimeout(checkForUpdates, 5000);
+            setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
+        }
+        
+        function setupBroadcast() {
+            broadcastSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+            
+            broadcastSocket.on('error', (err) => {
+                console.error('❌ ブロードキャストエラー:', err);
+            });
+            
+            broadcastSocket.on('message', (msg, rinfo) => {
+                try {
+                    const data = JSON.parse(msg.toString());
+                    if (rinfo.address !== myIP && data.type === 'announce') {
+                        addPeer(data.name, rinfo.address);
+                    }
+                } catch (err) {}
+            });
+            
+            broadcastSocket.on('listening', () => {
+                broadcastSocket.setBroadcast(true);
+                console.log('✅ UDPブロードキャスト待受開始:', BROADCAST_PORT);
+            });
+            
+            broadcastSocket.bind(BROADCAST_PORT);
+        }
+        
+        function setupTransferServer() {
+            transferServer = net.createServer((socket) => {
+                let receivedData = Buffer.alloc(0);
+                let fileInfo = null;
+                let expectedSize = 0;
+                let isMessage = false;
+                
+                console.log('📥 接続受付:', socket.remoteAddress);
+                
+                socket.on('data', (data) => {
+                    receivedData = Buffer.concat([receivedData, data]);
+                    
+                    if (!fileInfo && receivedData.length >= 4) {
+                        const headerSize = receivedData.readUInt32BE(0);
+                        
+                        if (receivedData.length >= 4 + headerSize) {
+                            const headerJSON = receivedData.slice(4, 4 + headerSize).toString('utf8');
+                            fileInfo = JSON.parse(headerJSON);
+                            
+                            console.log('📋 受信データ:', fileInfo);
+                            
+                            if (fileInfo.type === 'message') {
+                                isMessage = true;
+                                expectedSize = 0;
+                                
+                                console.log('💬 メッセージ受信:', {
+                                    from: fileInfo.from,
+                                    textLength: fileInfo.text ? fileInfo.text.length : 0,
+                                    fileCount: fileInfo.fileCount || 0,
+                                    filesReceived: fileInfo.files ? fileInfo.files.length : 0,
+                                    fileDetails: fileInfo.files ? fileInfo.files.map(f => ({
+                                        name: f.name,
+                                        size: f.size,
+                                        hasData: !!f.data,
+                                        dataLength: f.data ? f.data.length : 0
+                                    })) : []
+                                });
+                                
+                                playNotificationSound();
+                                showReceivedMessage(fileInfo.text, fileInfo.from, fileInfo.files || []);
+                                socket.end();
+                                return;
+                            }
+                            
+                            expectedSize = fileInfo.size;
+                            receivedData = receivedData.slice(4 + headerSize);
+                            showProgress('📥 受信中...', fileInfo.name, fileInfo.size);
+                        }
+                    }
+                    
+                    if (fileInfo && !isMessage && expectedSize > 0) {
+                        updateProgress(receivedData.length, expectedSize, expectedSize);
+                    }
+                });
+                
+                socket.on('end', async () => {
+                    if (isMessage) {
+                        console.log('✅ メッセージ受信完了');
+                        return;
+                    }
+                    
+                    if (fileInfo && receivedData.length === expectedSize) {
+                        console.log('✅ ファイル受信完了:', fileInfo.name);
+                        
+                        const result = await ipcRenderer.invoke('save-file', fileInfo.name, Array.from(receivedData));
+                        hideProgress();
+                        
+                        if (result.success) {
+                            playNotificationSound();
+                            alert(`✅ ファイル受信完了！\n\nファイル: ${fileInfo.name}\n保存先: ${result.filePath}`);
+                        }
+                    }
+                });
+                
+                socket.on('error', (err) => {
+                    console.error('❌ ソケットエラー:', err);
+                    hideProgress();
+                });
+            });
+            
+            transferServer.listen(TRANSFER_PORT, () => {
+                console.log('✅ TCP転送サーバー起動:', TRANSFER_PORT);
+            });
+        }
+        
+        function startBroadcasting() {
+            function broadcast() {
+                const message = JSON.stringify({
+                    type: 'announce',
+                    name: myName,
+                    ip: myIP
+                });
+                
+                try {
+                    broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255');
+                } catch (err) {}
+            }
+            
+            setTimeout(broadcast, 100);
+            setInterval(broadcast, BROADCAST_INTERVAL);
+        }
+        
+        function addPeer(name, ip) {
+            discoveredPeers.set(ip, {
+                name: name,
+                ip: ip,
+                lastSeen: Date.now()
+            });
+            updatePeerList();
+        }
+        
+        function updatePeerList() {
+            const now = Date.now();
+            const TIMEOUT = 10000;
+            
+            for (const [ip, peer] of discoveredPeers) {
+                if (now - peer.lastSeen > TIMEOUT) {
+                    discoveredPeers.delete(ip);
+                    selectedPeers.delete(ip);
+                }
+            }
+            
+            const peers = Array.from(discoveredPeers.values());
+            document.getElementById('peerCount').textContent = peers.length;
+            
+            const list = document.getElementById('peerList');
+            if (peers.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">🔍</div>
+                        <div>ネットワーク上にデバイスが見つかりません</div>
+                    </div>
+                `;
+            } else {
+                list.innerHTML = peers.map(p => `
+                    <div class="peer-item" id="peer-${p.ip.replace(/\./g, '-')}"
+                         ondragover="handleDragOver(event, '${p.ip}')"
+                         ondragleave="handleDragLeave(event, '${p.ip}')"
+                         ondrop="handleDrop(event, '${p.ip}')">
+                        <input type="checkbox" class="peer-checkbox" 
+                               ${selectedPeers.has(p.ip) ? 'checked' : ''}
+                               onchange="togglePeer('${p.ip}')">
+                        <div class="peer-info">
+                            <div class="peer-avatar">💻</div>
+                            <div>
+                                <div class="peer-name">${p.name}</div>
+                                <div class="peer-ip">${p.ip}</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-send" onclick="openSendModal('${p.ip}', '${p.name}')">📤 送信</button>
+                    </div>
+                `).join('');
+            }
+            updateSendBar();
+        }
+        
+        function togglePeer(ip) {
+            if (selectedPeers.has(ip)) {
+                selectedPeers.delete(ip);
+            } else {
+                selectedPeers.add(ip);
+            }
+            updateSendBar();
+        }
+        
+        function updateSendBar() {
+            const sendBar = document.getElementById('sendBar');
+            const selectedCount = document.getElementById('selectedCount');
+            if (selectedPeers.size > 0) {
+                sendBar.classList.add('show');
+                selectedCount.textContent = `${selectedPeers.size}人`;
+            } else {
+                sendBar.classList.remove('show');
+            }
+        }
+        
+        function clearSelection() {
+            selectedPeers.clear();
+            updatePeerList();
+        }
+        
+        function sendToSelected() {
+            if (selectedPeers.size === 0) return alert('送信先を選択してください');
+            
+            if (selectedPeers.size === 1) {
+                const targetIP = Array.from(selectedPeers)[0];
+                const peer = discoveredPeers.get(targetIP);
+                openSendModal(targetIP, peer.name);
+            } else {
+                const fileInput = document.getElementById('fileInput');
+                fileInput.onchange = (e) => {
+                    const files = Array.from(e.target.files);
+                    if (files.length > 0) {
+                        sendFilesToMultiple(Array.from(selectedPeers), files);
+                    }
+                    e.target.value = '';
+                };
+                fileInput.click();
+            }
+        }
+        
+        function sendFilesToMultiple(targets, files) {
+            let targetIndex = 0, fileIndex = 0;
+            
+            function sendNext() {
+                if (targetIndex >= targets.length) {
+                    return alert(`✅ 全送信完了！\n\n送信先: ${targets.length}台\nファイル数: ${files.length}`);
+                }
+                if (fileIndex >= files.length) {
+                    targetIndex++;
+                    fileIndex = 0;
+                    return setTimeout(sendNext, 500);
+                }
+                sendFileData(targets[targetIndex], files[fileIndex], () => {
+                    fileIndex++;
+                    setTimeout(sendNext, 500);
+                });
+            }
+            sendNext();
+        }
+        
+        function sendFileData(targetIP, file, callback) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const fileData = Buffer.from(e.target.result);
+                const fileInfo = { name: file.name, type: file.type, size: file.size };
+                
+                const client = net.createConnection({ port: TRANSFER_PORT, host: targetIP }, () => {
+                    console.log('📤 ファイル送信開始:', targetIP, file.name);
+                    showProgress('📤 送信中...', file.name, file.size);
+                    
+                    const headerJSON = JSON.stringify(fileInfo);
+                    const headerBuffer = Buffer.from(headerJSON, 'utf8');
+                    const headerSize = Buffer.alloc(4);
+                    headerSize.writeUInt32BE(headerBuffer.length, 0);
+                    
+                    client.write(headerSize);
+                    client.write(headerBuffer);
+                    
+                    const CHUNK_SIZE = 64 * 1024;
+                    let offset = 0;
+                    
+                    function sendChunk() {
+                        if (currentTransfer && currentTransfer.cancelled) {
+                            client.end();
+                            hideProgress();
+                            if (callback) callback();
+                            return;
+                        }
+                        if (offset >= fileData.length) {
+                            client.end();
+                            hideProgress();
+                            console.log('✅ ファイル送信完了:', file.name);
+                            if (!callback) alert(`✅ 送信完了！\n\nファイル: ${file.name}`);
+                            if (callback) callback();
+                            return;
+                        }
+                        const chunk = fileData.slice(offset, offset + CHUNK_SIZE);
+                        client.write(chunk, () => {
+                            offset += chunk.length;
+                            updateProgress(offset, fileData.length, fileData.length);
+                            setTimeout(sendChunk, 10);
+                        });
+                    }
+                    currentTransfer = { cancelled: false };
+                    sendChunk();
+                });
+                
+                client.on('error', (err) => {
+                    console.error('❌ 送信エラー:', err);
+                    hideProgress();
+                    if (callback) callback();
+                });
+            };
+            reader.readAsArrayBuffer(file);
+        }
+        
+        function handleDragOver(event, ip) {
+            event.preventDefault();
+            event.stopPropagation();
+            document.getElementById('peer-' + ip.replace(/\./g, '-')).classList.add('drag-over');
+        }
+        
+        function handleDragLeave(event, ip) {
+            event.preventDefault();
+            document.getElementById('peer-' + ip.replace(/\./g, '-')).classList.remove('drag-over');
+        }
+        
+        function handleDrop(event, ip) {
+            event.preventDefault();
+            event.stopPropagation();
+            document.getElementById('peer-' + ip.replace(/\./g, '-')).classList.remove('drag-over');
+            
+            const items = event.dataTransfer.items;
+            const files = [];
+            if (items) {
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].kind === 'file') {
+                        files.push(items[i].getAsFile());
+                    }
+                }
+            }
+            if (files.length > 0) sendFilesToMultiple([ip], files);
+        }
+        
+        function handleFileAttachDragOver(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            document.getElementById('fileAttachSection').style.borderColor = '#667eea';
+            document.getElementById('fileAttachSection').style.background = '#f9fafb';
+        }
+        
+        function handleFileAttachDragLeave(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            const section = document.getElementById('fileAttachSection');
+            if (attachedFiles.length > 0) {
+                section.style.borderColor = '#10b981';
+                section.style.background = '#f0fdf4';
+            } else {
+                section.style.borderColor = '#e5e7eb';
+                section.style.background = '';
+            }
+        }
+        
+        function handleFileAttachDrop(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const files = Array.from(event.dataTransfer.files);
+            attachedFiles = [...attachedFiles, ...files];
+            updateAttachedFileList();
+        }
+        
+        function updateAttachedFileList() {
+            const section = document.getElementById('fileAttachSection');
+            const placeholder = document.getElementById('fileAttachPlaceholder');
+            const list = document.getElementById('attachedFileList');
+            
+            if (attachedFiles.length === 0) {
+                placeholder.style.display = 'block';
+                list.style.display = 'none';
+                section.classList.remove('has-files');
+                return;
+            }
+            
+            placeholder.style.display = 'none';
+            list.style.display = 'block';
+            section.classList.add('has-files');
+            
+            list.innerHTML = attachedFiles.map((item, index) => {
+                const file = item.file || item;
+                const path = item.path || file.name;
+                const isFolder = item.isFolder || false;
+                const icon = isFolder ? '📁' : '📄';
+                const className = isFolder ? 'file-item folder' : 'file-item';
+                
+                return `
+                    <div class="${className}">
+                        <div class="file-item-info">
+                            <span>${icon}</span>
+                            <div>
+                                <div style="font-weight:bold;">${path}</div>
+                                <div style="font-size:12px;color:#666;">${formatBytes(file.size)}</div>
+                            </div>
+                        </div>
+                        <button class="file-remove-btn" onclick="removeAttachedFile(${index}); event.stopPropagation();">×</button>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function removeAttachedFile(index) {
+            attachedFiles.splice(index, 1);
+            updateAttachedFileList();
+        }
+        
+        function readFileAsArrayBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
+        
+        function openSendModal(targetIP, targetName) {
+            currentSendTarget = { ip: targetIP, name: targetName };
+            document.getElementById('sendModalTitle').textContent = `${targetName} へ送信`;
+            document.getElementById('messageInput').value = '';
+            attachedFiles = [];
+            updateAttachedFileList();
+            document.getElementById('sendModal').classList.add('active');
+            document.getElementById('messageInput').focus();
+        }
+        
+        function closeSendModal() {
+            document.getElementById('sendModal').classList.remove('active');
+            currentSendTarget = null;
+            attachedFiles = [];
+            updateAttachedFileList();
+        }
+        
+        async function sendMessage() {
+            const text = document.getElementById('messageInput').value.trim();
+            
+            if (!text && attachedFiles.length === 0) {
+                alert('メッセージまたはファイルを指定してください');
+                return;
+            }
+            
+            if (!currentSendTarget) {
+                alert('送信先が選択されていません');
+                closeSendModal();
+                return;
+            }
+            
+            const targetIP = currentSendTarget.ip;
+            const targetName = currentSendTarget.name;
+            
+            // ファイルを送信前に保存（closeSendModalでクリアされるため）
+            const filesToSend = [...attachedFiles];
+            
+            closeSendModal();
+            
+            try {
+                console.log('📤 メッセージ送信開始:', targetName, {
+                    textLength: text.length,
+                    fileCount: filesToSend.length
+                });
+                
+                showProgress('📤 送信中...', `${targetName} にメッセージを送信しています`, 0);
+                
+                const filesData = [];
+                for (const item of filesToSend) {
+                    const file = item.file || item;
+                    const path = item.path || file.name;
+                    const data = await readFileAsArrayBuffer(file);
+                    filesData.push({
+                        name: file.name,
+                        path: path,
+                        type: file.type,
+                        size: file.size,
+                        data: Array.from(new Uint8Array(data)),
+                        isFolder: item.isFolder || false
+                    });
+                }
+                
+                await sendMessageData(targetIP, text, filesData, targetName);
+                
+                hideProgress();
+                console.log('✅ メッセージ送信完了');
+                alert('✅ 送信完了！');
+            } catch (err) {
+                hideProgress();
+                console.error('❌ 送信エラー:', err);
+                alert('❌ 送信エラー: ' + err.message);
+            }
+        }
+        
+        function sendMessageData(targetIP, text, filesData, targetName) {
+            return new Promise((resolve, reject) => {
+                const client = new net.Socket();
+                let connected = false;
+                
+                const timeout = setTimeout(() => {
+                    if (!connected) {
+                        client.destroy();
+                        reject(new Error('接続タイムアウト'));
+                    }
+                }, 10000);
+                
+                client.connect(TRANSFER_PORT, targetIP, () => {
+                    connected = true;
+                    clearTimeout(timeout);
+                    
+                    console.log('🔗 接続成功:', targetIP);
+                    
+                    const metadata = {
+                        type: 'message',
+                        text: text,
+                        from: myName,
+                        timestamp: Date.now(),
+                        fileCount: filesData.length,
+                        files: filesData
+                    };
+                    
+                    const headerBuffer = Buffer.from(JSON.stringify(metadata), 'utf8');
+                    const headerSize = Buffer.alloc(4);
+                    headerSize.writeUInt32BE(headerBuffer.length, 0);
+                    
+                    console.log('📤 データ送信:', {
+                        textLength: text.length,
+                        fileCount: filesData.length,
+                        headerSize: headerBuffer.length,
+                        totalDataSize: JSON.stringify(metadata).length,
+                        files: filesData.map(f => ({ name: f.name, size: f.size, dataLength: f.data.length }))
+                    });
+                    
+                    client.write(headerSize);
+                    client.write(headerBuffer, () => {
+                        console.log('✅ 書き込み完了');
+                        setTimeout(() => {
+                            client.end();
+                        }, 100);
+                    });
+                });
+                
+                client.on('end', () => {
+                    console.log('🔌 接続終了');
+                    resolve();
+                });
+                
+                client.on('error', (err) => {
+                    console.error('❌ 接続エラー:', err);
+                    clearTimeout(timeout);
+                    reject(err);
+                });
+            });
+        }
+        
+        function showReceivedMessage(text, fromName, files) {
+            console.log('📨 受信メッセージ表示:', {
+                text: text,
+                fromName: fromName,
+                filesCount: files ? files.length : 0
+            });
+            
+            const modal = document.getElementById('receivedModal');
+            document.getElementById('receivedFrom').textContent = `From: ${fromName}`;
+            document.getElementById('receivedMessageBody').textContent = text || '（メッセージなし）';
+            
+            receivedFilesData = files;
+            
+            // フォルダをグループ化
+            const folders = {};
+            const standaloneFiles = [];
+            
+            files.forEach((file, index) => {
+                if (file.path && file.path.includes('/')) {
+                    const parts = file.path.split('/');
+                    const folderName = parts[0];
+                    
+                    if (!folders[folderName]) {
+                        folders[folderName] = [];
+                    }
+                    folders[folderName].push({ file, index });
+                } else {
+                    standaloneFiles.push({ file, index });
+                }
+            });
+            
+            const filesContainer = document.getElementById('receivedFiles');
+            if (files && files.length > 0) {
+                let html = '';
+                
+                // フォルダ表示
+                Object.keys(folders).forEach(folderName => {
+                    const folderFiles = folders[folderName];
+                    const totalSize = folderFiles.reduce((sum, item) => sum + item.file.size, 0);
+                    
+                    html += `
+                        <div class="received-file-item folder">
+                            <div>
+                                <div style="font-weight:bold;">📁 ${folderName}</div>
+                                <div style="font-size:12px;color:#666;">
+                                    ${folderFiles.length}個のファイル (${formatBytes(totalSize)})
+                                </div>
+                            </div>
+                            <button class="received-file-save-btn" onclick="saveFolderFiles('${folderName}')">
+                                💾 フォルダを保存
+                            </button>
+                        </div>
+                    `;
+                });
+                
+                // 個別ファイル表示
+                standaloneFiles.forEach(({ file, index }) => {
+                    html += `
+                        <div class="received-file-item">
+                            <div>
+                                <div style="font-weight:bold;">📄 ${file.name}</div>
+                                <div style="font-size:12px;color:#666;">${formatBytes(file.size)}</div>
+                            </div>
+                            <button class="received-file-save-btn" onclick="saveReceivedFile(${index})">
+                                💾 保存
+                            </button>
+                        </div>
+                    `;
+                });
+                
+                filesContainer.innerHTML = `
+                    <div style="margin-top:15px;padding-top:15px;border-top:1px solid #e5e7eb;">
+                        <div style="font-weight:bold;margin-bottom:10px;">📎 添付ファイル</div>
+                        ${html}
+                    </div>
+                `;
+            } else {
+                filesContainer.innerHTML = '';
+            }
+            
+            modal.classList.add('active');
+        }
+        
+        async function saveReceivedFile(index) {
+            const file = receivedFilesData[index];
+            if (!file) return;
+            
+            try {
+                console.log('💾 ファイル保存:', file.name);
+                const result = await ipcRenderer.invoke('save-file', file.name, file.data);
+                
+                if (result.success) {
+                    alert(`✅ 保存完了！\n\n${result.filePath}`);
+                } else {
+                    alert('❌ 保存に失敗しました');
+                }
+            } catch (err) {
+                console.error('❌ 保存エラー:', err);
+                alert('❌ 保存エラー: ' + err.message);
+            }
+        }
+        
+        async function saveFolderFiles(folderName) {
+            const folderFiles = receivedFilesData.filter(file => 
+                file.path && file.path.startsWith(folderName + '/')
+            );
+            
+            if (folderFiles.length === 0) {
+                alert('フォルダ内にファイルが見つかりません');
+                return;
+            }
+            
+            console.log('📁 フォルダ保存:', folderName, folderFiles.length, '個のファイル');
+            
+            try {
+                const result = await ipcRenderer.invoke('select-folder');
+                if (!result.success) return;
+                
+                const basePath = result.folderPath;
+                let savedCount = 0;
+                
+                for (const file of folderFiles) {
+                    const filePath = `${basePath}/${file.path}`;
+                    
+                    const saveResult = await ipcRenderer.invoke('save-file-to-path', filePath, file.data);
+                    if (saveResult.success) {
+                        savedCount++;
+                    }
+                }
+                
+                alert(`✅ フォルダ保存完了！\n\n保存先: ${basePath}/${folderName}\nファイル数: ${savedCount}/${folderFiles.length}`);
+            } catch (err) {
+                console.error('❌ フォルダ保存エラー:', err);
+                alert('❌ フォルダ保存エラー: ' + err.message);
+            }
+        }
+        
+        function closeReceivedModal() {
+            document.getElementById('receivedModal').classList.remove('active');
+        }
+        
+        function copyReceivedMessage() {
+            const text = document.getElementById('receivedMessageBody').textContent;
+            if (text && text !== '（メッセージなし）') {
+                navigator.clipboard.writeText(text).then(() => {
+                    alert('✅ クリップボードにコピーしました');
+                });
+            }
+        }
+        
+        function showProgress(title, fileName, fileSize) {
+            document.getElementById('progressTitle').textContent = title;
+            document.getElementById('progressFile').textContent = fileName;
+            document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('progressBar').textContent = '0%';
+            document.getElementById('progressOverlay').classList.add('show');
+        }
+        
+        function updateProgress(current, total, fileSize) {
+            const percent = Math.round((current / total) * 100);
+            document.getElementById('progressBar').style.width = percent + '%';
+            document.getElementById('progressBar').textContent = percent + '%';
+            document.getElementById('progressText').textContent = 
+                `${formatBytes(current)} / ${formatBytes(fileSize)}`;
+        }
+        
+        function hideProgress() {
+            document.getElementById('progressOverlay').classList.remove('show');
+            currentTransfer = null;
+        }
+        
+        function cancelTransfer() {
+            if (currentTransfer) currentTransfer.cancelled = true;
+            hideProgress();
+        }
+        
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+        
+        function playNotificationSound() {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(600, audioContext.currentTime + 0.1);
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.2);
+        }
+        
+        function openNameModal() {
+            document.getElementById('nameInput').value = myName;
+            document.getElementById('nameModal').classList.add('show');
+            document.getElementById('nameInput').focus();
+        }
+        
+        function closeNameModal() {
+            document.getElementById('nameModal').classList.remove('show');
+        }
+        
+        function saveName() {
+            const newName = document.getElementById('nameInput').value.trim();
+            if (newName && newName.length > 0) {
+                myName = newName;
+                localStorage.setItem('p2p_pc_name', myName);
+                document.getElementById('myName').textContent = myName;
+                closeNameModal();
+                
+                const message = JSON.stringify({ type: 'announce', name: myName, ip: myIP });
+                broadcastSocket.send(message, BROADCAST_PORT, '255.255.255.255');
+                
+                console.log('✅ PC名変更:', myName);
+            } else {
+                alert('PC名を入力してください');
+            }
+        }
+        
+        function checkForUpdates() {
+            const updateUrl = 'https://Teru0822.github.io/p2p-file-share-updates/index.html';
+            
+            console.log('🔍 アップデートチェック開始...');
+            
+            https.get(updateUrl, (res) => {
+                let data = '';
+                res.on('data', (chunk) => { data += chunk; });
+                res.on('end', () => {
+                    try {
+                        const match = data.match(/const VERSION_INFO = ({[\s\S]*?});/);
+                        if (!match) {
+                            console.log('⚠️ リモートバージョン情報が見つかりません');
+                            return;
+                        }
+                        
+                        const remoteVersionInfo = eval('(' + match[1] + ')');
+                        const remoteVersion = remoteVersionInfo.version;
+                        
+                        const ignoredVersion = localStorage.getItem('ignored_update_version');
+                        if (remoteVersion === ignoredVersion) {
+                            console.log('⏭️ このバージョンは無視リストに登録済み:', remoteVersion);
+                            return;
+                        }
+                        
+                        console.log('📊 バージョン比較:');
+                        console.log('  現在:', CURRENT_VERSION);
+                        console.log('  リモート:', remoteVersion);
+                        
+                        if (remoteVersion !== CURRENT_VERSION) {
+                            console.log('🎉 新しいバージョンを検出:', remoteVersion);
+                            showUpdateBanner(remoteVersionInfo);
+                        } else {
+                            console.log('✅ 最新版です');
+                        }
+                    } catch (err) {
+                        console.error('❌ アップデートチェックエラー:', err);
+                    }
+                });
+            }).on('error', (err) => {
+                console.error('❌ HTTP取得エラー:', err);
+            });
+        }
+        
+        function showUpdateBanner(versionInfo) {
+            if (document.querySelector('.update-banner')) return;
+            
+            const banner = document.createElement('div');
+            banner.className = 'update-banner';
+            banner.innerHTML = `
+                🎉 新しいバージョン ${versionInfo.version} が利用可能です！<br>クリックしてアップデート
+                <button class="update-banner-close" onclick="event.stopPropagation(); ignoreUpdate('${versionInfo.version}'); this.parentElement.remove();">×</button>
+            `;
+            banner.onclick = () => applyUpdate(versionInfo);
+            document.body.appendChild(banner);
+        }
+        
+        async function applyUpdate(versionInfo) {
+            const updateUrl = 'https://Teru0822.github.io/p2p-file-share-updates/index.html';
+            const banner = document.querySelector('.update-banner');
+            if (banner) banner.remove();
+            
+            console.log('⬇️ アップデート開始:', versionInfo.version);
+            showProgress('⬇️ アップデート中...', 'index.htmlをダウンロードしています', 0);
+            
+            try {
+                const result = await ipcRenderer.invoke('download-update', updateUrl, versionInfo.version);
+                hideProgress();
+                
+                if (result.success) {
+                    console.log('✅ ファイル保存成功:', result.filePath);
+                    localStorage.setItem('app_version', versionInfo.version);
+                    console.log('✅ localStorage保存:', versionInfo.version);
+                    
+                    const restartMsg = document.createElement('div');
+                    restartMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:40px;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.5);z-index:9999;text-align:center;';
+                    restartMsg.innerHTML = `
+                        <div style="font-size:24px;font-weight:bold;margin-bottom:10px;">✅ アップデート完了</div>
+                        <div style="color:#666;margin-bottom:20px;">v${versionInfo.version} にアップデートしました</div>
+                        <div style="color:#666;">3秒後に自動で再起動します...</div>
+                    `;
+                    document.body.appendChild(restartMsg);
+                    
+                    setTimeout(async () => {
+                        console.log('🔄 再起動実行');
+                        await ipcRenderer.invoke('restart-app');
+                    }, 3000);
+                } else {
+                    console.error('❌ アップデート失敗:', result.error);
+                    alert('❌ アップデートに失敗しました: ' + result.error);
+                }
+            } catch (err) {
+                hideProgress();
+                console.error('❌ アップデートエラー:', err);
+                alert('❌ アップデートエラー: ' + err.message);
+            }
+        }
+        
+        function ignoreUpdate(version) {
+            localStorage.setItem('ignored_update_version', version);
+            console.log('⏭️ アップデート無視:', version);
+        }
+        
+        setInterval(updatePeerList, 2000);
+        init();
+    </script>
+</body>
+</html>
