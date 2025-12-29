@@ -13,25 +13,12 @@ const CONFIG = {
     },
     INTERVALS: {
         BROADCAST: 3000,
-        PEER_TIMEOUT: 10000,
-        UPDATE_CHECK: 3000 // 3秒間隔に短縮
+        PEER_TIMEOUT: 10000
     },
     GITHUB: {
         BASE_URL: 'https://raw.githubusercontent.com/Teru0822/p2p-file-share-updates/main/',
-        // GitHub API を使用してキャッシュを回避 (Content URL)
         VERSION_URL: 'https://api.github.com/repos/Teru0822/p2p-file-share-updates/contents/package.json'
     }
-};
-
-const VERSION_INFO = {
-    version: CONFIG.VERSION,
-    changelog: [
-        '✅ Refactored codebase for better performance',
-        '✅ Improved UI responsiveness',
-        '✅ Enhanced error handling',
-        '✅ IPMessenger-style auto discovery',
-        '✅ Folder transfer support'
-    ]
 };
 
 // --- Utilities ---
@@ -649,54 +636,6 @@ class P2PApp {
         const peers = Array.from(this.discoveredPeers.values());
         this.ui.renderPeerList(peers, this.selectedPeers);
     }
-
-    // レンダラー側でのループは廃止 (メインプロセスが管理)
-    /*
-    startUpdateLoop() {
-        setInterval(() => this.updatePeerListUI(), 1000); // Check timeouts
-
-        // 初回チェックを即座に実行
-        this.checkForUpdates();
-
-        // 以降、定期チェック
-        setInterval(() => this.checkForUpdates(), CONFIG.INTERVALS.UPDATE_CHECK);
-    }
-
-    async checkForUpdates() {
-        console.log('🔄 アップデートを確認中 (GitHub API)...');
-        try {
-            const response = await fetch(CONFIG.GITHUB.VERSION_URL, {
-                cache: 'no-store',
-                headers: {
-                    'Accept': 'application/vnd.github.v3+json',
-                    'Cache-Control': 'no-cache',
-                    'Pragma': 'no-cache'
-                }
-            });
-
-            if (!response.ok) return;
-
-            const data = await response.json();
-            // GitHub API は Base64 でコンテンツを返すためデコードが必要
-            const content = atob(data.content.replace(/\s/g, ''));
-            const remotePkg = JSON.parse(content);
-            const remoteVersion = remotePkg.version;
-
-            // 現在のローカルバージョンを再取得
-            const currentVersion = await ipcRenderer.invoke('get-app-version');
-            CONFIG.VERSION = currentVersion;
-
-            console.log(`[UpdateCheck] Current: ${currentVersion}, Remote: ${remoteVersion}`);
-
-            if (remoteVersion !== currentVersion) {
-                console.log('🚀 バージョンの差異を検出しました！通知を準備します...');
-                this.performUpdate(remoteVersion);
-            }
-        } catch (err) {
-            console.error('Update check failed:', err);
-        }
-    }
-    */
 
     compareVersions(v1, v2) {
         const p1 = v1.split('.').map(Number);

@@ -2,7 +2,6 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
-const { spawn } = require('child_process');
 
 let mainWindow;
 
@@ -33,9 +32,6 @@ function createWindow() {
     }
 
     console.log('📂 実効アプリケーションパス:', app.effectiveAppPath);
-
-    // デバッグのため開発者ツールを自動で開く
-    mainWindow.webContents.openDevTools();
 
     mainWindow.on('focus', () => {
         console.log('🔍 ウィンドウフォーカス: アップデートを確認します');
