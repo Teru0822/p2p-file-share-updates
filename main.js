@@ -183,39 +183,9 @@ ipcMain.handle('download-update', async (event, url, fileName) => {
 
 // 再起動
 ipcMain.handle('restart-app', async () => {
-    // AppImageの場合、process.env.APPIMAGE が元のパスを指す
-    const exePath = process.env.APPIMAGE || process.execPath;
-    const args = process.argv.slice(1);
-
-    console.log('🔄 アプリを再起動します...');
-    console.log('実行パス:', exePath);
-    console.log('OS Plataform:', process.platform);
-
-    try {
-        if (process.platform === 'linux' || process.platform === 'darwin') {
-            // Linux/Mac では chmod を念のため確認 (配布形式によっては必要)
-            if (fs.existsSync(exePath)) {
-                try { fs.chmodSync(exePath, 0o755); } catch (e) { }
-            }
-        }
-
-        const child = spawn(exePath, args, {
-            detached: true,
-            stdio: 'ignore',
-            shell: process.platform === 'win32' ? false : true // Linuxではshell経由の方が安定する場合がある
-        });
-
-        child.unref();
-
-        // 少し待ってから終了 (ファイルの書き込み完了を確実にするため)
-        setTimeout(() => {
-            app.quit();
-        }, 1500);
-    } catch (err) {
-        console.error('再起動に失敗しました:', err);
-        // 失敗しても終了はさせる (手動起動を促すため)
-        app.quit();
-    }
+    console.log('🔄 アプリを再起動します (relaunch)...');
+    app.relaunch();
+    app.exit(0);
 });
 
 // ウィンドウを前面に表示
