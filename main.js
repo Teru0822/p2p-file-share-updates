@@ -12,8 +12,15 @@ const LOCAL_INDEX = path.join(UPDATE_DIR, 'index.html');
 
 function createWindow() {
     mainWindow = new BrowserWindow({
-        width: 600,
-        height: 600,
+        width: 300,
+        height: 300,
+        minWidth: 300,
+        minHeight: 300,
+        maxWidth: 300,
+        maxHeight: 300,
+        resizable: false,
+        maximizable: false,
+        fullscreenable: false,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false
