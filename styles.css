@@ -476,6 +476,15 @@ body {
     background: #059669;
 }
 
+.attach-btn-screenshot {
+    background: #ec4899;
+    color: white;
+}
+
+.attach-btn-screenshot:hover {
+    background: #db2777;
+}
+
 .file-list {
     margin-top: 15px;
     text-align: left;
@@ -618,150 +627,151 @@ body {
     border-radius: 15px;
     overflow: hidden;
     margin-bottom: 10px;
+}
 
-    /* History Styles */
-    .history-list {
-        max-height: 200px;
-        overflow-y: auto;
-        background: #f8fafc;
-        border-radius: 8px;
-        border: 1px solid #e5e7eb;
+/* History Styles */
+.history-list {
+    max-height: 200px;
+    overflow-y: auto;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.history-item {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    font-size: 13px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.history-item:last-child {
+    border-bottom: none;
+}
+
+.history-content {
+    flex: 1;
+}
+
+.history-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.history-badge {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    color: white;
+}
+
+.badge-send {
+    background: #3b82f6;
+}
+
+/* Blue */
+.badge-receive {
+    background: #10b981;
+}
+
+/* Green */
+
+.history-target {
+    font-weight: 600;
+    color: #374151;
+}
+
+.history-detail {
+    color: #666;
+    word-break: break-all;
+}
+
+.history-time {
+    font-size: 11px;
+    color: #999;
+    margin-left: 10px;
+    white-space: nowrap;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    width: 0%;
+    transition: width 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.cancel-btn {
+    margin-top: 20px;
+    width: 100%;
+    padding: 12px;
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.cancel-btn:hover {
+    background: #dc2626;
+}
+
+/* Update Banner */
+.update-banner {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #22c55e;
+    color: white;
+    padding: 15px 50px 15px 20px;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(34, 197, 94, 0.3);
+    cursor: pointer;
+    z-index: 4000;
+    animation: slideIn 0.3s;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(400px);
     }
 
-    .history-item {
-        padding: 10px;
-        border-bottom: 1px solid #eee;
-        font-size: 13px;
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
+    to {
+        transform: translateX(0);
     }
+}
 
-    .history-item:last-child {
-        border-bottom: none;
-    }
+.update-banner:hover {
+    background: #16a34a;
+}
 
-    .history-content {
-        flex: 1;
-    }
+.update-banner-close {
+    position: absolute;
+    top: 5px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    width: 25px;
+    height: 25px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
-    .history-header {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 4px;
-    }
-
-    .history-badge {
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-size: 11px;
-        font-weight: bold;
-        color: white;
-    }
-
-    .badge-send {
-        background: #3b82f6;
-    }
-
-    /* Blue */
-    .badge-receive {
-        background: #10b981;
-    }
-
-    /* Green */
-
-    .history-target {
-        font-weight: 600;
-        color: #374151;
-    }
-
-    .history-detail {
-        color: #666;
-        word-break: break-all;
-    }
-
-    .history-time {
-        font-size: 11px;
-        color: #999;
-        margin-left: 10px;
-        white-space: nowrap;
-    }
-
-    .progress-bar {
-        height: 100%;
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-        width: 0%;
-        transition: width 0.3s;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-weight: bold;
-        font-size: 12px;
-    }
-
-    .cancel-btn {
-        margin-top: 20px;
-        width: 100%;
-        padding: 12px;
-        background: #ef4444;
-        color: white;
-        border: none;
-        border-radius: 10px;
-        font-weight: bold;
-        cursor: pointer;
-    }
-
-    .cancel-btn:hover {
-        background: #dc2626;
-    }
-
-    /* Update Banner */
-    .update-banner {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: #22c55e;
-        color: white;
-        padding: 15px 50px 15px 20px;
-        border-radius: 10px;
-        box-shadow: 0 10px 30px rgba(34, 197, 94, 0.3);
-        cursor: pointer;
-        z-index: 4000;
-        animation: slideIn 0.3s;
-    }
-
-    @keyframes slideIn {
-        from {
-            transform: translateX(400px);
-        }
-
-        to {
-            transform: translateX(0);
-        }
-    }
-
-    .update-banner:hover {
-        background: #16a34a;
-    }
-
-    .update-banner-close {
-        position: absolute;
-        top: 5px;
-        right: 10px;
-        background: none;
-        border: none;
-        color: white;
-        font-size: 20px;
-        cursor: pointer;
-        width: 25px;
-        height: 25px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .update-banner-close:hover {
-        opacity: 0.7;
-    }
+.update-banner-close:hover {
+    opacity: 0.7;
+}

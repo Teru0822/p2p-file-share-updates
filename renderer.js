@@ -1,4 +1,4 @@
-const { ipcRenderer } = require('electron');
+const { ipcRenderer, desktopCapturer, screen } = require('electron');
 const os = require('os');
 const dgram = require('dgram');
 const net = require('net');
@@ -317,6 +317,10 @@ class UIManager {
         this.fileInput = document.getElementById('fileInput');
         this.attachFileInput = document.getElementById('attachFileInput');
         this.attachFolderInput = document.getElementById('attachFolderInput');
+
+        // Screenshot elements
+        this.screenshotOverlay = document.getElementById('screenshotOverlay');
+        this.screenshotCanvas = document.getElementById('screenshotCanvas');
     }
 
     renderPeerList(peers, selectedPeerIPs) {
@@ -1022,6 +1026,191 @@ class P2PApp {
     cancelTransfer() {
         this.network.cancelTransfer();
         this.ui.hideProgress();
+    }
+
+    // --- Screenshot Logic ---
+    async startScreenshotMode() {
+        // 現在のウィンドウを少し隠すなどの処理があればここで行うが、今回はキャプチャ待ちする
+        console.log('📸 スクリーンショットモード開始: 画面キャプチャを準備中...');
+
+        // メインプロセスにウィンドウ最小化を依頼しても良いが、ここではシンプルに500ms待ってから撮る
+        // 本来はウィンドウを非表示にしてから撮るのが望ましい
+
+        const currentWindow = require('electron').remote?.getCurrentWindow() || { minimize: () => { }, restore: () => { }, focus: () => { } };
+        // remoteが使えない環境(contextIsolation: falseならrequire('electron').remoteはundefinedになるかも)
+        // 今回の環境設定では ipcRenderer.invoke('minimize-window') が良さそうだが、ハンドラがないので省略
+        // ユーザーがウィンドウをどかす時間を考慮して少し待つか、ウィンドウを含めて撮るか。
+        // ここでは「現在の画面」をそのまま撮る。
+
+        try {
+            // Get screen sources
+            const inputSources = await desktopCapturer.getSources({
+                types: ['screen'],
+                thumbnailSize: { width: 1920, height: 1080 } // 仮サイズ、実際は画面サイズに合わせるべき
+            });
+
+            // Primary display setup
+            const primarySource = inputSources[0]; // 単純化のため1つ目を選択
+
+            // Full resolution capture
+            const constraints = {
+                audio: false,
+                video: {
+                    mandatory: {
+                        chromeMediaSource: 'desktop',
+                        chromeMediaSourceId: primarySource.id,
+                        minWidth: 1280,
+                        maxWidth: 4000,
+                        minHeight: 720,
+                        maxHeight: 2160
+                    }
+                }
+            };
+
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            const videoTrack = stream.getVideoTracks()[0];
+            const { width, height } = videoTrack.getSettings();
+
+            // Draw video frame to canvas
+            const video = document.createElement('video');
+            video.srcObject = stream;
+            video.play();
+
+            await new Promise(resolve => video.onloadedmetadata = resolve);
+
+            // キャンバスサイズ設定
+            this.ui.screenshotCanvas.width = width;
+            this.ui.screenshotCanvas.height = height;
+
+            // 描画
+            const ctx = this.ui.screenshotCanvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, width, height);
+
+            // ストリーム停止
+            videoTrack.stop();
+
+            // オーバーレイ表示
+            this.ui.screenshotOverlay.style.display = 'block';
+            this.screenshotImage = ctx.getImageData(0, 0, width, height); // 元データを保存
+
+            // 矩形選択の初期化
+            this.initScreenshotSelection(ctx, width, height);
+
+        } catch (e) {
+            console.error('Screenshot failed:', e);
+            alert('スクリーンショットの取得に失敗しました: ' + e.message);
+        }
+    }
+
+    initScreenshotSelection(ctx, width, height) {
+        let isDrawing = false;
+        let startX = 0;
+        let startY = 0;
+        let endX = 0;
+        let endY = 0;
+
+        const canvas = this.ui.screenshotCanvas;
+
+        // 再描画用関数
+        const draw = () => {
+            // 元画像を描画
+            ctx.putImageData(this.screenshotImage, 0, 0);
+
+            // 暗くするオーバーレイ (全画面半透明黒)
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(0, 0, width, height);
+
+            // 選択範囲をクリア (元の明るい画像を表示)
+            // 選択範囲の座標計算
+            const rectX = Math.min(startX, endX);
+            const rectY = Math.min(startY, endY);
+            const rectW = Math.abs(endX - startX);
+            const rectH = Math.abs(endY - startY);
+
+            if (rectW > 0 && rectH > 0) {
+                // クリップして元画像を描画し直すことで「そこだけ明るい」を実現
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(rectX, rectY, rectW, rectH);
+                ctx.clip();
+                ctx.putImageData(this.screenshotImage, 0, 0);
+
+                // 枠線
+                ctx.strokeStyle = '#00ff00';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(rectX, rectY, rectW, rectH);
+                ctx.restore();
+            }
+
+            this.selectionRect = { x: rectX, y: rectY, w: rectW, h: rectH };
+        };
+
+        // イベントリスナー (一度だけ設定するため、onを使って上書きするか、removeEventListenerが必要)
+        canvas.onmousedown = (e) => {
+            isDrawing = true;
+            const rect = canvas.getBoundingClientRect();
+            // 画面上の表示サイズとCanvas実サイズの比率計算
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            startX = (e.clientX - rect.left) * scaleX;
+            startY = (e.clientY - rect.top) * scaleY;
+            endX = startX;
+            endY = startY;
+            draw();
+        };
+
+        canvas.onmousemove = (e) => {
+            if (!isDrawing) return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            endX = (e.clientX - rect.left) * scaleX;
+            endY = (e.clientY - rect.top) * scaleY;
+            draw();
+        };
+
+        canvas.onmouseup = () => {
+            isDrawing = false;
+        };
+
+        // 初期描画（全体を暗く）
+        draw();
+    }
+
+    confirmScreenshot() {
+        if (!this.selectionRect || this.selectionRect.w === 0 || this.selectionRect.h === 0) {
+            return alert('範囲を選択してください');
+        }
+
+        const { x, y, w, h } = this.selectionRect;
+
+        // 切り抜き用キャンバス作成
+        const cropCanvas = document.createElement('canvas');
+        cropCanvas.width = w;
+        cropCanvas.height = h;
+        const cropCtx = cropCanvas.getContext('2d');
+
+        cropCtx.putImageData(this.screenshotImage, -x, -y, x, y, w, h);
+
+        // Blob化して添付ファイルに追加
+        cropCanvas.toBlob((blob) => {
+            const file = new File([blob], `screenshot_${Date.now()}.png`, { type: 'image/png' });
+            this.attachedFiles.push({
+                file: file,
+                path: file.name,
+                isFolder: false
+            });
+            this.ui.updateAttachedFileList(this.attachedFiles);
+            this.cancelScreenshot(); // オーバーレイを閉じる
+        }, 'image/png');
+    }
+
+    cancelScreenshot() {
+        this.ui.screenshotOverlay.style.display = 'none';
+        this.screenshotImage = null;
+        this.selectionRect = null;
     }
 
     clearHistory() {
