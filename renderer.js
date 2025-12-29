@@ -14,7 +14,7 @@ const CONFIG = {
     INTERVALS: {
         BROADCAST: 3000,
         PEER_TIMEOUT: 10000,
-        UPDATE_CHECK: 10000 // 10秒間隔
+        UPDATE_CHECK: 3000 // 3秒間隔に短縮
     },
     GITHUB: {
         BASE_URL: 'https://raw.githubusercontent.com/Teru0822/p2p-file-share-updates/main/',
