@@ -16,7 +16,10 @@
     "file-sharing",
     "electron"
   ],
-  "author": "Your Name",
+  "author": {
+    "name": "Your Name",
+    "email": "your.email@example.com"
+  },
   "license": "MIT",
   "devDependencies": {
     "electron": "^28.0.0",
