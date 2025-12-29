@@ -54,16 +54,16 @@ app.whenReady().then(() => {
     });
 });
 
-// 定期チェック (30秒)
-setInterval(checkUpdates, 30000);
+// 定期チェック (5秒)
+setInterval(checkUpdates, 5000);
 
 let lastUpdateNotified = 0;
 
 async function checkUpdates() {
     if (!mainWindow) return;
 
-    // 1分以内の重複通知は行わない
-    if (Date.now() - lastUpdateNotified < 60000) return;
+    // 10秒以内の重複通知は行わない (5秒間隔のチェックに対応)
+    if (Date.now() - lastUpdateNotified < 10000) return;
 
     console.log('🌐 GitHubに最新バージョンを問い合わせ中...');
 
