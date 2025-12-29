@@ -9,11 +9,11 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background: #f0f2f5;
     /* グラデーションから単色へ変更して見やすく */
-    height: 100vh;
+    height: 100%;
     padding: 10px;
     color: #333;
-    overflow: hidden;
-    /* メインスクロールバーを消す */
+    overflow-y: auto;
+    /* スクロール可能に */
 }
 
 /* Layout & Containers */
@@ -68,11 +68,11 @@ body {
     display: flex;
     align-items: center;
     gap: 4px;
-    /* 10px -> 4px */
-    padding: 4px 8px;
-    /* 10px 20px -> 4px 8px */
+    padding: 2px 6px;
     background: #f0f9ff;
     border-radius: 4px;
+    font-size: 8px;
+    /* 文字サイズ縮小 */
 }
 
 .status-dot {
