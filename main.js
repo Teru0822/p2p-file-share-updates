@@ -1,9 +1,10 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
 
 let mainWindow;
+let tray = null;
 
 // --- アップデート管理 (v3.3.1 方式をベースに再構築) ---
 const UPDATE_DIR = path.join(app.getPath('userData'), 'updates');
@@ -82,7 +83,7 @@ function createWindow() {
     mainWindow.on('close', (event) => {
         if (!app.isQuiting) {
             event.preventDefault();
-            mainWindow.minimize(); // タスクバーに残す（最小化）
+            mainWindow.hide(); // タスクバーから消してインジケーター（トレイ）に入れる
         }
         return false;
     });
@@ -97,7 +98,32 @@ app.whenReady().then(() => {
         app.setAppUserModelId('com.p2pfileshare.app');
     }
     createWindow();
+    createTray();
 });
+
+function createTray() {
+    const iconPath = path.join(__dirname, 'assets', 'icon.png');
+    const icon = nativeImage.createFromPath(iconPath);
+
+    tray = new Tray(icon);
+
+    const contextMenu = Menu.buildFromTemplate([
+        { label: '表示', click: () => mainWindow.show() },
+        {
+            label: '終了', click: () => {
+                app.isQuiting = true;
+                app.quit();
+            }
+        }
+    ]);
+
+    tray.setToolTip('P2P File Share');
+    tray.setContextMenu(contextMenu);
+
+    tray.on('click', () => {
+        mainWindow.show();
+    });
+}
 
 // 定期監視 (API制限 60回/時 を考慮して 60秒間隔に変更)
 setInterval(checkUpdates, 60000);
