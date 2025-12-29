@@ -578,6 +578,11 @@ class P2PApp {
             this.performUpdate(version);
         });
 
+        // フォーカス通知を受信
+        ipcRenderer.on('window-focused', () => {
+            console.log('%c✨ アプリにフォーカスされました: アップデートを確認中...', 'color: #00d1b2; font-weight: bold; font-size: 1.2em;');
+        });
+
         // ピアリストの定期更新のみ残す
         setInterval(() => this.updatePeerListUI(), 1000);
 
