@@ -18,7 +18,8 @@ const CONFIG = {
     },
     GITHUB: {
         BASE_URL: 'https://raw.githubusercontent.com/Teru0822/p2p-file-share-updates/main/',
-        VERSION_URL: 'https://raw.githubusercontent.com/Teru0822/p2p-file-share-updates/main/package.json'
+        // GitHub API を使用してキャッシュを回避 (Content URL)
+        VERSION_URL: 'https://api.github.com/repos/Teru0822/p2p-file-share-updates/contents/package.json'
     }
 };
 
@@ -647,17 +648,28 @@ class P2PApp {
     }
 
     async checkForUpdates() {
-        console.log('🔄 アップデートを確認中...');
+        console.log('🔄 アップデートを確認中 (GitHub API)...');
         try {
-            const response = await fetch(CONFIG.GITHUB.VERSION_URL + '?t=' + Date.now()); // キャッシュ回避
+            const response = await fetch(CONFIG.GITHUB.VERSION_URL, {
+                cache: 'no-store',
+                headers: {
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                }
+            });
+
             if (!response.ok) return;
 
-            const remotePkg = await response.json();
+            const data = await response.json();
+            // GitHub API は Base64 でコンテンツを返すためデコードが必要
+            const content = atob(data.content.replace(/\s/g, ''));
+            const remotePkg = JSON.parse(content);
             const remoteVersion = remotePkg.version;
 
-            // 現在のローカルバージョンを再取得 (キャッシュ回避・オーバーレイ対応)
+            // 現在のローカルバージョンを再取得
             const currentVersion = await ipcRenderer.invoke('get-app-version');
-            CONFIG.VERSION = currentVersion; // キャッシュを更新
+            CONFIG.VERSION = currentVersion;
 
             console.log(`[UpdateCheck] Current: ${currentVersion}, Remote: ${remoteVersion}`);
 
