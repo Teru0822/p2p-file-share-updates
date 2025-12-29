@@ -17,7 +17,7 @@ function createWindow() {
     });
 
     mainWindow.loadFile('index.html');
-    
+
     // 開発者ツールを自動で開く
     mainWindow.webContents.openDevTools();
 
@@ -66,7 +66,7 @@ ipcMain.handle('select-folder', async (event) => {
         const result = await dialog.showOpenDialog({
             properties: ['openDirectory']
         });
-        
+
         if (!result.canceled && result.filePaths.length > 0) {
             return { success: true, folderPath: result.filePaths[0] };
         }
@@ -103,34 +103,37 @@ ipcMain.handle('save-file-to-path', async (event, filePath, fileData) => {
 });
 
 // アップデートダウンロード
-ipcMain.handle('download-update', async (event, url, version) => {
+// アップデートダウンロードと保存
+ipcMain.handle('download-update', async (event, url, fileName) => {
     return new Promise((resolve) => {
         https.get(url, (res) => {
-            let data = '';
-            res.on('data', (chunk) => { data += chunk; });
+            if (res.statusCode !== 200) {
+                resolve({ success: false, error: `Status Code: ${res.statusCode}` });
+                return;
+            }
+
+            let data = [];
+            res.on('data', (chunk) => { data.push(chunk); });
             res.on('end', () => {
                 try {
-                    let targetDir;
-                    if (app.isPackaged) {
-                        targetDir = path.dirname(process.execPath);
-                    } else {
-                        targetDir = app.getAppPath();
-                    }
-                    
-                    const filePath = path.join(targetDir, 'index.html');
-                    
+                    const buffer = Buffer.concat(data);
+                    // asar: false設定により、常にgetAppPath()が書き込み可能なリソースフォルダ(resources/app)を指す
+                    const targetDir = app.getAppPath();
+
+                    const filePath = path.join(targetDir, fileName);
+
+                    // バックアップ作成 (存在する場合)
                     if (fs.existsSync(filePath)) {
-                        const backupPath = path.join(targetDir, 'index.html.backup');
+                        const backupPath = filePath + '.backup';
                         fs.copyFileSync(filePath, backupPath);
-                        console.log('📦 バックアップ作成:', backupPath);
+                        console.log(`📦 バックアップ作成: ${fileName}`);
                     }
-                    
-                    fs.writeFileSync(filePath, data, 'utf8');
-                    
-                    console.log('✅ アップデート保存:', filePath);
-                    console.log('📝 バージョン:', version);
-                    
-                    resolve({ success: true, filePath: filePath, version: version });
+
+                    fs.writeFileSync(filePath, buffer);
+
+                    console.log(`✅ アップデート保存: ${fileName}`);
+
+                    resolve({ success: true, filePath: filePath });
                 } catch (err) {
                     console.error('❌ 保存エラー:', err);
                     resolve({ success: false, error: err.message });
@@ -146,15 +149,15 @@ ipcMain.handle('download-update', async (event, url, version) => {
 ipcMain.handle('restart-app', async () => {
     const exePath = process.execPath;
     const args = process.argv.slice(1);
-    
+
     console.log('🔄 アプリを再起動します...');
     console.log('実行パス:', exePath);
-    
+
     spawn(exePath, args, {
         detached: true,
         stdio: 'ignore'
     }).unref();
-    
+
     setTimeout(() => {
         app.quit();
     }, 1000);

@@ -6,7 +6,7 @@ const https = require('https');
 
 // --- Configuration & Constants ---
 const CONFIG = {
-    VERSION: '1.0.6',
+    VERSION: require('./package.json').version || '2.4.1', // Read from package.json if possible, fallback manual
     PORTS: {
         BROADCAST: 45678,
         TRANSFER: 45679
@@ -14,9 +14,12 @@ const CONFIG = {
     INTERVALS: {
         BROADCAST: 3000,
         PEER_TIMEOUT: 10000,
-        UPDATE_CHECK: 6 * 60 * 60 * 1000
+        UPDATE_CHECK: 10000 // 10秒間隔
     },
-    UPDATE_URL: 'https://Teru0822.github.io/p2p-file-share-updates/index.html'
+    GITHUB: {
+        BASE_URL: 'https://raw.githubusercontent.com/Teru0822/p2p-file-share-updates/main/',
+        VERSION_URL: 'https://raw.githubusercontent.com/Teru0822/p2p-file-share-updates/main/package.json'
+    }
 };
 
 const VERSION_INFO = {
@@ -545,7 +548,90 @@ class P2PApp {
 
     startUpdateLoop() {
         setInterval(() => this.updatePeerListUI(), 1000); // Check timeouts
-        // Update Check Logic could go here
+
+        // 初回チェック
+        setTimeout(() => this.checkForUpdates(), 5000);
+
+        // 定期チェック (10秒ごと)
+        setInterval(() => this.checkForUpdates(), CONFIG.INTERVALS.UPDATE_CHECK);
+    }
+
+    async checkForUpdates() {
+        console.log('🔄 アップデートを確認中...');
+        try {
+            const response = await fetch(CONFIG.GITHUB.VERSION_URL + '?t=' + Date.now()); // キャッシュ回避
+            if (!response.ok) return;
+
+            const remotePkg = await response.json();
+            const remoteVersion = remotePkg.version;
+            const currentVersion = CONFIG.VERSION;
+
+            console.log(`Current: ${currentVersion}, Remote: ${remoteVersion}`);
+
+            if (this.compareVersions(remoteVersion, currentVersion) > 0) {
+                console.log('🚀 新しいバージョンが見つかりました:', remoteVersion);
+                this.performUpdate(remoteVersion);
+            }
+        } catch (err) {
+            console.error('Update check failed:', err);
+        }
+    }
+
+    compareVersions(v1, v2) {
+        const p1 = v1.split('.').map(Number);
+        const p2 = v2.split('.').map(Number);
+        for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
+            const n1 = p1[i] || 0;
+            const n2 = p2[i] || 0;
+            if (n1 > n2) return 1;
+            if (n1 < n2) return -1;
+        }
+        return 0;
+    }
+
+    async performUpdate(newVersion) {
+        // 二重実行防止
+        if (this.isUpdating) return;
+        this.isUpdating = true;
+
+        const confirmUpdate = confirm(`✨ 新しいバージョン (${newVersion}) が利用可能です。\n自動的に更新して再起動しますか？`);
+        if (!confirmUpdate) {
+            this.isUpdating = false;
+            return;
+        }
+
+        this.ui.showProgress('🚀 アップデート中...', '最新データをダウンロードしています', 100);
+
+        const filesToUpdate = ['index.html', 'renderer.js', 'styles.css', 'main.js', 'package.json'];
+        let successCount = 0;
+
+        for (const file of filesToUpdate) {
+            try {
+                this.ui.updateProgressBar(successCount, filesToUpdate.length);
+                this.ui.els.progressText.textContent = `ダウンロード中: ${file}`;
+
+                const url = CONFIG.GITHUB.BASE_URL + file + '?t=' + Date.now();
+                const result = await ipcRenderer.invoke('download-update', url, file);
+
+                if (result.success) {
+                    successCount++;
+                } else {
+                    console.error(`Failed to update ${file}:`, result.error);
+                }
+            } catch (err) {
+                console.error(`Error updating ${file}:`, err);
+            }
+        }
+
+        this.ui.hideProgress();
+
+        if (successCount > 0) {
+            alert(`✅ アップデート完了！ (${newVersion})\nアプリを再起動します。`);
+            ipcRenderer.invoke('restart-app');
+        } else {
+            alert('❌ アップデートに失敗しました。');
+            this.isUpdating = false;
+        }
     }
 
     togglePeer(ip) {
