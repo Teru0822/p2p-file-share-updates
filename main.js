@@ -134,9 +134,9 @@ let lastUpdateCheck = 0;
 async function checkUpdates() {
     if (!mainWindow) return;
 
-    // API制限保護: 前回のチェックから30秒未満ならスキップ (フォーカス連打対策)
+    // API制限保護: 前回のチェックから5秒未満ならスキップ (フォーカス連打対策)
     const now = Date.now();
-    if (now - lastUpdateCheck < 30000) return;
+    if (now - lastUpdateCheck < 5000) return;
     lastUpdateCheck = now;
 
     // GitHub API (反映が早いため採用。ただし利用制限に注意)
