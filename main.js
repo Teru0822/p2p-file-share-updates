@@ -95,26 +95,22 @@ async function checkUpdates() {
     // 10秒以内の重複通知を防止
     if (Date.now() - lastUpdateNotified < 10000) return;
 
-    const options = {
-        hostname: 'api.github.com',
-        path: '/repos/Teru0822/p2p-file-share-updates/contents/package.json',
-        headers: {
-            'User-Agent': 'P2P-File-Share-App',
-            'Accept': 'application/vnd.github.v3+json',
-            'Cache-Control': 'no-cache'
-        }
-    };
+    // GitHub Raw Content URL (API制限回避・高速化)
+    // タイムスタンプを付与してキャッシュを完全回避
+    const rawUrl = `https://raw.githubusercontent.com/Teru0822/p2p-file-share-updates/main/package.json?t=${Date.now()}`;
 
-    https.get(options, (res) => {
-        if (res.statusCode !== 200) return;
+    https.get(rawUrl, (res) => {
+        if (res.statusCode !== 200) {
+            console.warn(`⚠️ アップデート確認失敗: Status ${res.statusCode}`);
+            return;
+        }
 
         let data = '';
         res.on('data', (chunk) => { data += chunk; });
         res.on('end', () => {
             try {
-                const json = JSON.parse(data);
-                const content = Buffer.from(json.content, 'base64').toString();
-                const remotePkg = JSON.parse(content);
+                // Raw URL なので Base64 デコードは不要
+                const remotePkg = JSON.parse(data);
                 const remoteVersion = remotePkg.version;
 
                 // 物理ファイルから現在のバージョンを確実に読み取る

@@ -17,7 +17,7 @@ const CONFIG = {
     },
     GITHUB: {
         BASE_URL: 'https://raw.githubusercontent.com/Teru0822/p2p-file-share-updates/main/',
-        VERSION_URL: 'https://api.github.com/repos/Teru0822/p2p-file-share-updates/contents/package.json'
+        VERSION_URL: 'https://raw.githubusercontent.com/Teru0822/p2p-file-share-updates/main/package.json'
     }
 };
 
@@ -566,6 +566,20 @@ class P2PApp {
         // メインプロセスからのアップデート通知を待機
         ipcRenderer.on('update-available', (event, version) => {
             console.log(`🔔 [Update] メインプロセスから新バージョン v${version} の通知を受信しました。`);
+
+            // システム通知を表示
+            const notification = new Notification('✨ 新しいバージョンが利用可能です', {
+                body: `バージョン ${version} が公開されました。\nクリックして更新してください。`,
+                icon: 'assets/icon.png',
+                silent: false
+            });
+
+            notification.onclick = () => {
+                ipcRenderer.send('show-window');
+                this.performUpdate(version);
+            };
+
+            // アプリ内でも更新処理を開始（モーダル表示）
             this.performUpdate(version);
         });
 
