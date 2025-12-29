@@ -727,7 +727,7 @@ class P2PApp {
 
         for (const file of filesToUpdate) {
             try {
-                this.ui.updateProgressBar(successCount, filesToUpdate.length);
+                this.ui.updateProgressBar(successCount + 1, filesToUpdate.length);
                 this.ui.els.progressText.textContent = `ダウンロード中: ${file}`;
 
                 const url = CONFIG.GITHUB.BASE_URL + file + '?t=' + Date.now();

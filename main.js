@@ -133,22 +133,33 @@ ipcMain.handle('download-update', async (event, url, fileName) => {
             res.on('end', () => {
                 try {
                     const buffer = Buffer.concat(data);
-                    let targetDir = app.getAppPath();
+                    // main.js で事前に決定された effectiveAppPath を使用する
+                    // これにより、起動時に読み込んだディレクトリと同じ場所に保存される
+                    const targetDir = app.effectiveAppPath || app.getAppPath();
+                    const filePath = path.join(targetDir, fileName);
 
-                    // 書き込み権限チェック
-                    let isWritable = true;
-                    try {
-                        fs.accessSync(targetDir, fs.constants.W_OK);
-                    } catch (e) {
-                        isWritable = false;
-                        console.log(`⚠️ インストール先 ${targetDir} に書き込み権限がありません。userDataを使用します。`);
-                        targetDir = path.join(app.getPath('userData'), 'updates');
-                        if (!fs.existsSync(targetDir)) {
-                            fs.mkdirSync(targetDir, { recursive: true });
-                        }
+                    // 保存先ディレクトリの存在確認と権限チェック
+                    if (!fs.existsSync(targetDir)) {
+                        fs.mkdirSync(targetDir, { recursive: true });
                     }
 
-                    const filePath = path.join(targetDir, fileName);
+                    try {
+                        fs.accessSync(targetDir, fs.constants.W_OK | fs.constants.R_OK);
+                    } catch (e) {
+                        // もし currentDir が書き込み不可なら、再判定してuserDataへ切り替える
+                        if (targetDir === app.getAppPath()) {
+                            const userUpdateDir = path.join(app.getPath('userData'), 'updates');
+                            if (!fs.existsSync(userUpdateDir)) fs.mkdirSync(userUpdateDir, { recursive: true });
+                            app.effectiveAppPath = userUpdateDir;
+                            // 再帰的にパスを再設定
+                            const newFilePath = path.join(userUpdateDir, fileName);
+                            fs.writeFileSync(newFilePath, buffer);
+                            resolve({ success: true, filePath: newFilePath });
+                            return;
+                        }
+                        resolve({ success: false, error: `保存先に書き込み権限がありません: ${targetDir}` });
+                        return;
+                    }
 
                     // バックアップ作成 (存在する場合)
                     if (fs.existsSync(filePath)) {
