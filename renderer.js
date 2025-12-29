@@ -651,10 +651,10 @@ class P2PApp {
             const remoteVersion = remotePkg.version;
             const currentVersion = CONFIG.VERSION;
 
-            console.log(`Current: ${currentVersion}, Remote: ${remoteVersion}`);
+            console.log(`[UpdateCheck] Current: ${currentVersion}, Remote: ${remoteVersion}`);
 
             if (remoteVersion !== currentVersion) {
-                console.log('🚀 バージョンの差異を検出しました。リモート:', remoteVersion);
+                console.log('🚀 バージョンの差異を検出しました！通知を準備します...');
                 this.performUpdate(remoteVersion);
             }
         } catch (err) {
@@ -680,17 +680,34 @@ class P2PApp {
         if (this.lastNotifiedVersion === newVersion) return;
         this.lastNotifiedVersion = newVersion;
 
-        console.log(`🔔 アップデート通知を表示: ${newVersion}`);
+        const title = '✨ アップデートが利用可能です！';
+        const body = `新しいバージョン (${newVersion}) が公開されました。\nクリックまたはダイアログで更新を行い、アプリを再起動してください。`;
 
-        const notification = new Notification('✨ アップデートが利用可能です！', {
-            body: `新しいバージョン (${newVersion}) が公開されました。\nクリックして更新を行い、アプリを再起動してください。`,
-            requireInteraction: true // ユーザーがクリックするまで消えない
-        });
+        console.log(`🔔 通知を発行します: ${newVersion} (許可状態: ${Notification.permission})`);
 
-        notification.onclick = () => {
-            notification.close();
+        // システム通知の表示を試みる
+        if (Notification.permission === 'granted') {
+            try {
+                const notification = new Notification(title, {
+                    body: body,
+                    requireInteraction: true
+                });
+
+                notification.onclick = () => {
+                    notification.close();
+                    this.executeAutoUpdate(newVersion);
+                };
+                return; // 通知が出せた場合はここで終了
+            } catch (err) {
+                console.error('Notification error:', err);
+            }
+        }
+
+        // 通知が送れない、または拒否されている場合は通常の確認ダイアログ（fallback）
+        const confirmUpdate = confirm(`${title}\n\n${body}`);
+        if (confirmUpdate) {
             this.executeAutoUpdate(newVersion);
-        };
+        }
     }
 
     async executeAutoUpdate(newVersion) {
