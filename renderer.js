@@ -574,7 +574,7 @@ class P2PApp {
 
         // メインプロセスからのアップデート通知を待機
         ipcRenderer.on('update-available', (event, version) => {
-            console.log('🚀 メインプロセスよりアップデート通知を受信:', version);
+            console.log(`🔔 [Update] メインプロセスから新バージョン v${version} の通知を受信しました。`);
             this.performUpdate(version);
         });
 

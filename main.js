@@ -19,10 +19,10 @@ function createWindow() {
     // 書き込み可能なアップデートディレクトリを確認
     const updateDir = path.join(app.getPath('userData'), 'updates');
     const localIndex = path.join(updateDir, 'index.html');
-    const localPkg = path.join(updateDir, 'package.json');
 
-    // グローバルにアクセスできるように、現在の実効パスを保持
+    // 起動時に即座に実効パスを確定させる
     app.effectiveAppPath = fs.existsSync(localIndex) ? updateDir : app.getAppPath();
+    console.log('📂 実効アプリケーションパス:', app.effectiveAppPath);
 
     if (fs.existsSync(localIndex)) {
         console.log('✨ アップデート版の index.html を読み込みます:', localIndex);
@@ -50,11 +50,18 @@ app.whenReady().then(() => {
     });
 });
 
-// 定期チェック (30秒に緩和しつつ、フォーカス時で補完)
+// 定期チェック (30秒)
 setInterval(checkUpdates, 30000);
+
+let lastUpdateNotified = 0;
 
 async function checkUpdates() {
     if (!mainWindow) return;
+
+    // 1分以内の重複通知は行わない
+    if (Date.now() - lastUpdateNotified < 60000) return;
+
+    console.log('🌐 GitHubに最新バージョンを問い合わせ中...');
 
     const options = {
         hostname: 'api.github.com',
@@ -87,15 +94,18 @@ async function checkUpdates() {
                 const currentVersion = localPkg.version;
 
                 if (remoteVersion !== currentVersion) {
-                    console.log(`🚀 新バージョン検出: ${currentVersion} -> ${remoteVersion}`);
+                    console.log(`🚀 新バージョン検出! [Local: ${currentVersion}] -> [Remote: ${remoteVersion}]`);
+                    lastUpdateNotified = Date.now();
                     mainWindow.webContents.send('update-available', remoteVersion);
+                } else {
+                    console.log(`✅ すでに最新版です (v${currentVersion})`);
                 }
             } catch (e) {
-                console.error('❌ 解析エラー:', e.message);
+                console.error('❌ バージョン解析エラー:', e.message);
             }
         });
     }).on('error', (e) => {
-        console.error('❌ 通信エラー:', e.message);
+        console.error('❌ GitHub API 通信エラー:', e.message);
     });
 }
 
