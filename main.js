@@ -19,6 +19,10 @@ function createWindow() {
     // 書き込み可能なアップデートディレクトリを確認
     const updateDir = path.join(app.getPath('userData'), 'updates');
     const localIndex = path.join(updateDir, 'index.html');
+    const localPkg = path.join(updateDir, 'package.json');
+
+    // グローバルにアクセスできるように、現在の実効パスを保持
+    app.effectiveAppPath = fs.existsSync(localIndex) ? updateDir : app.getAppPath();
 
     if (fs.existsSync(localIndex)) {
         console.log('✨ アップデート版の index.html を読み込みます:', localIndex);
@@ -204,5 +208,16 @@ ipcMain.handle('show-item-in-folder', async (event, filePath) => {
         return { success: true };
     } catch (err) {
         return { success: false, error: err.message };
+    }
+});
+
+// 現在のバージョン情報を取得 (オーバーレイ対応)
+ipcMain.handle('get-app-version', async () => {
+    try {
+        const pkgPath = path.join(app.effectiveAppPath || app.getAppPath(), 'package.json');
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+        return pkg.version;
+    } catch (e) {
+        return app.getVersion();
     }
 });

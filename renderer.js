@@ -6,7 +6,7 @@ const https = require('https');
 
 // --- Configuration & Constants ---
 const CONFIG = {
-    VERSION: require('./package.json').version || '2.4.1', // Read from package.json if possible, fallback manual
+    VERSION: '...', // Will be loaded dynamically from main process
     PORTS: {
         BROADCAST: 45678,
         TRANSFER: 45679
@@ -552,7 +552,10 @@ class P2PApp {
         });
     }
 
-    init() {
+    async init() {
+        // 現在の正式なバージョンを取得 (オーバーレイ対応)
+        CONFIG.VERSION = await ipcRenderer.invoke('get-app-version');
+
         console.log(`🚀 P2P File Share v${CONFIG.VERSION} Started`);
         this.ui.cacheElements();
 
@@ -651,7 +654,10 @@ class P2PApp {
 
             const remotePkg = await response.json();
             const remoteVersion = remotePkg.version;
-            const currentVersion = CONFIG.VERSION;
+
+            // 現在のローカルバージョンを再取得 (キャッシュ回避・オーバーレイ対応)
+            const currentVersion = await ipcRenderer.invoke('get-app-version');
+            CONFIG.VERSION = currentVersion; // キャッシュを更新
 
             console.log(`[UpdateCheck] Current: ${currentVersion}, Remote: ${remoteVersion}`);
 
@@ -1059,4 +1065,4 @@ class P2PApp {
 // Initialize
 const app = new P2PApp();
 window.app = app; // Expose to window for inline HTML events
-document.addEventListener('DOMContentLoaded', () => app.init());
+document.addEventListener('DOMContentLoaded', async () => await app.init());
