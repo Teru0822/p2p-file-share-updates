@@ -653,8 +653,8 @@ class P2PApp {
 
             console.log(`Current: ${currentVersion}, Remote: ${remoteVersion}`);
 
-            if (this.compareVersions(remoteVersion, currentVersion) > 0) {
-                console.log('🚀 新しいバージョンが見つかりました:', remoteVersion);
+            if (remoteVersion !== currentVersion) {
+                console.log('🚀 バージョンの差異を検出しました。リモート:', remoteVersion);
                 this.performUpdate(remoteVersion);
             }
         } catch (err) {
