@@ -19,6 +19,7 @@ function createWindow() {
         minHeight: 400,
         maxWidth: 300,
         maxHeight: 400,
+        icon: path.join(__dirname, 'assets', 'icon.png'),
         resizable: false,
         maximizable: false,
         fullscreenable: false,
