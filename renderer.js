@@ -635,10 +635,10 @@ class P2PApp {
     startUpdateLoop() {
         setInterval(() => this.updatePeerListUI(), 1000); // Check timeouts
 
-        // 初回チェック
-        setTimeout(() => this.checkForUpdates(), 5000);
+        // 初回チェックを即座に実行
+        this.checkForUpdates();
 
-        // 定期チェック (10秒ごと)
+        // 以降、定期チェック
         setInterval(() => this.checkForUpdates(), CONFIG.INTERVALS.UPDATE_CHECK);
     }
 
