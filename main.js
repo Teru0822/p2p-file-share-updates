@@ -5,7 +5,7 @@ const https = require('https');
 
 let mainWindow;
 
-// --- アップデート関連の定数 ---
+// --- アップデート管理 (v3.3.1 方式をベースに再構築) ---
 const UPDATE_DIR = path.join(app.getPath('userData'), 'updates');
 const LOCAL_PKG = path.join(UPDATE_DIR, 'package.json');
 const LOCAL_INDEX = path.join(UPDATE_DIR, 'index.html');
@@ -20,13 +20,13 @@ function createWindow() {
         }
     });
 
-    // 起動時にアップデート版（userData側）が存在するかチェック
+    // 起動時のオーバーレイ判定 (v3.3.1)
     if (fs.existsSync(LOCAL_PKG) && fs.existsSync(LOCAL_INDEX)) {
-        console.log('✨ アップデート版(userData)を検出しました。パス:', UPDATE_DIR);
+        console.log('✨ アップデート版 (userData/updates) を検出しました。');
         app.effectiveAppPath = UPDATE_DIR;
         mainWindow.loadFile(LOCAL_INDEX);
     } else {
-        console.log('🏠 オリジナル版(AppPath)を起動します。');
+        console.log('🏠 オリジナル版 (AppPath) を起動します。');
         app.effectiveAppPath = app.getAppPath();
         mainWindow.loadFile('index.html');
     }
@@ -51,7 +51,7 @@ app.whenReady().then(() => {
     createWindow();
 });
 
-// 5秒おきのチェック
+// 定期監視
 setInterval(checkUpdates, 5000);
 
 let lastUpdateNotified = 0;
@@ -59,7 +59,7 @@ let lastUpdateNotified = 0;
 async function checkUpdates() {
     if (!mainWindow) return;
 
-    // 10秒以内の重複通知は行わない
+    // 10秒以内の重複通知を防止
     if (Date.now() - lastUpdateNotified < 10000) return;
 
     const options = {
@@ -84,10 +84,8 @@ async function checkUpdates() {
                 const remotePkg = JSON.parse(content);
                 const remoteVersion = remotePkg.version;
 
-                // 現在動作中のディレクトリから package.json を読み取る
+                // 物理ファイルから現在のバージョンを確実に読み取る
                 const currentPkgPath = path.join(app.effectiveAppPath || app.getAppPath(), 'package.json');
-                if (!fs.existsSync(currentPkgPath)) return;
-
                 const localPkg = JSON.parse(fs.readFileSync(currentPkgPath, 'utf8'));
                 const currentVersion = localPkg.version;
 
@@ -99,34 +97,27 @@ async function checkUpdates() {
                     console.log(`✅ すでに最新版です (v${currentVersion})`);
                 }
             } catch (e) {
-                console.error('❌ バージョン解析エラー:', e.message);
+                console.error('❌ バージョンチェック中にエラー:', e.message);
             }
         });
-    }).on('error', (e) => {
-        console.error('❌ GitHub API 通信エラー:', e.message);
+    }).on('error', (err) => {
+        console.error('❌ GitHub API 通信エラー:', err.message);
     });
 }
 
-// IPC Handlers
+// IPCハンドラー (v3.3.1 で必要だったすべてのハンドラーを復元)
 
-// ファイル保存
-ipcMain.handle('save-file', async (event, fileName, fileData) => {
+ipcMain.handle('get-app-version', async () => {
     try {
-        const result = await dialog.showSaveDialog({
-            defaultPath: fileName,
-            filters: [{ name: 'All Files', extensions: ['*'] }]
-        });
-        if (!result.canceled && result.filePath) {
-            fs.writeFileSync(result.filePath, Buffer.from(fileData));
-            return { success: true, filePath: result.filePath };
+        const pkgPath = path.join(app.effectiveAppPath || app.getAppPath(), 'package.json');
+        if (fs.existsSync(pkgPath)) {
+            const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+            return pkg.version;
         }
-        return { success: false };
-    } catch (err) {
-        return { success: false, error: err.message };
-    }
+    } catch (e) { }
+    return app.getVersion();
 });
 
-// アップデートダウンロード (userData/updates 固定)
 ipcMain.handle('download-update', async (event, url, fileName) => {
     return new Promise((resolve) => {
         https.get(url, (res) => {
@@ -148,14 +139,16 @@ ipcMain.handle('download-update', async (event, url, fileName) => {
                     const filePath = path.join(UPDATE_DIR, fileName);
                     fs.writeFileSync(filePath, buffer);
 
+                    // アップデート後にパスを切り替え (再起動までの重複通知を防止)
+                    app.effectiveAppPath = UPDATE_DIR;
+
                     if (process.platform !== 'win32' && (fileName.endsWith('.js') || fileName.endsWith('.sh'))) {
                         try { fs.chmodSync(filePath, 0o755); } catch (e) { }
                     }
 
-                    console.log(`✅ アップデート保存完了: ${filePath}`);
+                    console.log(`✅ 保存完了: ${filePath}`);
                     resolve({ success: true, filePath: filePath });
                 } catch (err) {
-                    console.error('❌ 保存エラー:', err);
                     resolve({ success: false, error: err.message });
                 }
             });
@@ -171,18 +164,20 @@ ipcMain.handle('restart-app', async () => {
     app.exit(0);
 });
 
-ipcMain.handle('get-app-version', async () => {
+// ファイル共有関連のIPC
+ipcMain.handle('save-file', async (event, fileName, fileData) => {
     try {
-        const pkgPath = path.join(app.effectiveAppPath || app.getAppPath(), 'package.json');
-        if (fs.existsSync(pkgPath)) {
-            const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-            return pkg.version;
+        const result = await dialog.showSaveDialog({ defaultPath: fileName });
+        if (!result.canceled && result.filePath) {
+            fs.writeFileSync(result.filePath, Buffer.from(fileData));
+            return { success: true, filePath: result.filePath };
         }
-    } catch (e) { }
-    return app.getVersion();
+        return { success: false };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
 });
 
-// 他の基本的なIPC
 ipcMain.handle('select-folder', async () => {
     const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
     return result.canceled ? { success: false } : { success: true, folderPath: result.filePaths[0] };
@@ -202,7 +197,7 @@ ipcMain.handle('save-file-to-path', async (event, filePath, fileData) => {
         const dir = path.dirname(filePath);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(filePath, Buffer.from(fileData));
-        return { success: true, filePath };
+        return { success: true, filePath: filePath };
     } catch (err) {
         return { success: false, error: err.message };
     }
