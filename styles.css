@@ -728,9 +728,10 @@ body {
 }
 
 .history-badge {
-    padding: 2px 6px;
+    padding: 1px 4px;
     border-radius: 4px;
-    font-size: 11px;
+    font-size: 7px;
+    /* 11px -> 7px */
     font-weight: bold;
     color: white;
 }
