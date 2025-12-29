@@ -130,6 +130,19 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="updateModal">
+        <div class="modal-box">
+            <div class="modal-title">✨ アップデートが利用可能です</div>
+            <div id="updateModalBody" style="margin: 15px 0; line-height: 1.6; color: #444;">
+                新しいバージョンが公開されました。クリックして更新を行い、アプリを再起動してください。
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn cancel" onclick="app.ui.toggleModal('updateModal', false)">後で</button>
+                <button class="modal-btn action" onclick="app.startUpdateFromModal()">今すぐ更新</button>
+            </div>
+        </div>
+    </div>
+
     <input type="file" id="fileInput" style="display: none;" multiple>
     <input type="file" id="attachFileInput" style="display: none;" multiple>
     <input type="file" id="attachFolderInput" style="display: none;" webkitdirectory directory multiple>

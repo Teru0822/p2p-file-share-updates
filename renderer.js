@@ -320,7 +320,8 @@ class UIManager {
             'progressBar', 'progressText', 'nameModal', 'nameInput',
             'sendModal', 'sendModalTitle', 'messageInput', 'fileAttachSection',
             'fileAttachPlaceholder', 'attachedFileList', 'receivedModal',
-            'receivedFrom', 'receivedMessageBody', 'receivedFiles'
+            'receivedFrom', 'receivedMessageBody', 'receivedFiles',
+            'updateModal', 'updateModalBody'
         ];
         ids.forEach(id => this.els[id] = document.getElementById(id));
 
@@ -680,34 +681,19 @@ class P2PApp {
         if (this.lastNotifiedVersion === newVersion) return;
         this.lastNotifiedVersion = newVersion;
 
-        const title = '✨ アップデートが利用可能です！';
-        const body = `新しいバージョン (${newVersion}) が公開されました。\nクリックまたはダイアログで更新を行い、アプリを再起動してください。`;
+        console.log(`🔔 アプリ内アップデートポップアップを表示: ${newVersion}`);
 
-        console.log(`🔔 通知を発行します: ${newVersion} (許可状態: ${Notification.permission})`);
+        this.ui.els.updateModalBody.innerHTML = `
+            新しいバージョン <b>(${newVersion})</b> が公開されました。<br>
+            現在のバージョン: ${CONFIG.VERSION}<br><br>
+            「今すぐ更新」をクリックすると、最新のデータをダウンロードしてアプリを再起動します。
+        `;
+        this.ui.toggleModal('updateModal', true);
+    }
 
-        // システム通知の表示を試みる
-        if (Notification.permission === 'granted') {
-            try {
-                const notification = new Notification(title, {
-                    body: body,
-                    requireInteraction: true
-                });
-
-                notification.onclick = () => {
-                    notification.close();
-                    this.executeAutoUpdate(newVersion);
-                };
-                return; // 通知が出せた場合はここで終了
-            } catch (err) {
-                console.error('Notification error:', err);
-            }
-        }
-
-        // 通知が送れない、または拒否されている場合は通常の確認ダイアログ（fallback）
-        const confirmUpdate = confirm(`${title}\n\n${body}`);
-        if (confirmUpdate) {
-            this.executeAutoUpdate(newVersion);
-        }
+    startUpdateFromModal() {
+        this.ui.toggleModal('updateModal', false);
+        this.executeAutoUpdate(this.lastNotifiedVersion);
     }
 
     async executeAutoUpdate(newVersion) {
