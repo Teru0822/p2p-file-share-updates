@@ -704,6 +704,7 @@ class P2PApp {
 
         const filesToUpdate = ['index.html', 'renderer.js', 'styles.css', 'main.js', 'package.json'];
         let successCount = 0;
+        let errors = [];
 
         for (const file of filesToUpdate) {
             try {
@@ -717,20 +718,30 @@ class P2PApp {
                     successCount++;
                 } else {
                     console.error(`Failed to update ${file}:`, result.error);
+                    errors.push(`${file}: ${result.error}`);
                 }
             } catch (err) {
                 console.error(`Error updating ${file}:`, err);
+                errors.push(`${file}: ${err.message}`);
             }
         }
 
         this.ui.hideProgress();
 
-        if (successCount > 0) {
-            // alert(`✅ アップデート完了！ (${newVersion})\nアプリを再起動します。`);
-            // 通知クリックからの流れなので、アラートなしでスムーズに再起動する方がUXが良い
+        if (successCount === filesToUpdate.length) {
+            // 全ファイル成功
             ipcRenderer.invoke('restart-app');
+        } else if (successCount > 0) {
+            // 一部成功 (不整合の可能性があるが継続を打診)
+            const proceed = confirm(`⚠️ 一部のファイルの更新に失敗しました。\n\nエラー内容:\n${errors.join('\n')}\n\nこのまま再起動しますか？（推奨しません）`);
+            if (proceed) {
+                ipcRenderer.invoke('restart-app');
+            } else {
+                this.isUpdating = false;
+            }
         } else {
-            alert('❌ アップデートに失敗しました。');
+            // 全滅
+            alert(`❌ アップデートに失敗しました。\n\n主な原因:\n${errors.join('\n')}`);
             this.isUpdating = false;
         }
     }

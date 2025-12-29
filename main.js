@@ -120,50 +120,87 @@ ipcMain.handle('download-update', async (event, url, fileName) => {
             res.on('end', () => {
                 try {
                     const buffer = Buffer.concat(data);
-                    // asar: false設定により、常にgetAppPath()が書き込み可能なリソースフォルダ(resources/app)を指す
                     const targetDir = app.getAppPath();
-
                     const filePath = path.join(targetDir, fileName);
+
+                    // 書き込み権限チェック
+                    try {
+                        fs.accessSync(targetDir, fs.constants.W_OK);
+                    } catch (e) {
+                        resolve({ success: false, error: `ディレクトリに書き込み権限がありません: ${targetDir}` });
+                        return;
+                    }
 
                     // バックアップ作成 (存在する場合)
                     if (fs.existsSync(filePath)) {
-                        const backupPath = filePath + '.backup';
-                        fs.copyFileSync(filePath, backupPath);
-                        console.log(`📦 バックアップ作成: ${fileName}`);
+                        try {
+                            const backupPath = filePath + '.backup';
+                            fs.copyFileSync(filePath, backupPath);
+                            console.log(`📦 バックアップ作成: ${fileName}`);
+                        } catch (e) {
+                            console.warn(`⚠️ バックアップ作成失敗 (継続します): ${e.message}`);
+                        }
                     }
 
                     fs.writeFileSync(filePath, buffer);
 
-                    console.log(`✅ アップデート保存: ${fileName}`);
+                    // Linux/Mac の場合、実行ファイルなら権限を付与 (main.jsなどの場合)
+                    if (process.platform !== 'win32' && (fileName.endsWith('.js') || fileName.endsWith('.sh'))) {
+                        try {
+                            fs.chmodSync(filePath, 0o755);
+                        } catch (e) {
+                            console.warn(`⚠️ chmod失敗: ${e.message}`);
+                        }
+                    }
 
+                    console.log(`✅ アップデート保存完了: ${filePath}`);
                     resolve({ success: true, filePath: filePath });
                 } catch (err) {
                     console.error('❌ 保存エラー:', err);
-                    resolve({ success: false, error: err.message });
+                    resolve({ success: false, error: `ファイル保存中にエラーが発生しました: ${err.message}` });
                 }
             });
         }).on('error', (err) => {
-            resolve({ success: false, error: err.message });
+            resolve({ success: false, error: `通信エラー: ${err.message}` });
         });
     });
 });
 
 // 再起動
 ipcMain.handle('restart-app', async () => {
-    const exePath = process.execPath;
+    // AppImageの場合、process.env.APPIMAGE が元のパスを指す
+    const exePath = process.env.APPIMAGE || process.execPath;
     const args = process.argv.slice(1);
 
     console.log('🔄 アプリを再起動します...');
     console.log('実行パス:', exePath);
+    console.log('OS Plataform:', process.platform);
 
-    spawn(exePath, args, {
-        detached: true,
-        stdio: 'ignore'
-    }).unref();
+    try {
+        if (process.platform === 'linux' || process.platform === 'darwin') {
+            // Linux/Mac では chmod を念のため確認 (配布形式によっては必要)
+            if (fs.existsSync(exePath)) {
+                try { fs.chmodSync(exePath, 0o755); } catch (e) { }
+            }
+        }
 
-    setTimeout(() => {
+        const child = spawn(exePath, args, {
+            detached: true,
+            stdio: 'ignore',
+            shell: process.platform === 'win32' ? false : true // Linuxではshell経由の方が安定する場合がある
+        });
+
+        child.unref();
+
+        // 少し待ってから終了 (ファイルの書き込み完了を確実にするため)
+        setTimeout(() => {
+            app.quit();
+        }, 1500);
+    } catch (err) {
+        console.error('再起動に失敗しました:', err);
+        // 失敗しても終了はさせる (手動起動を促すため)
         app.quit();
-    }, 1000);
+    }
 });
 
 // ウィンドウを前面に表示
