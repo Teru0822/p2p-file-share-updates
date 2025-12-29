@@ -1,4 +1,4 @@
-/* Base Styles */
+/* Base Styles for 300x300 Window */
 * {
     margin: 0;
     padding: 0;
@@ -7,59 +7,78 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
-    padding: 20px;
+    background: #f0f2f5;
+    /* グラデーションから単色へ変更して見やすく */
+    height: 100vh;
+    padding: 10px;
     color: #333;
+    overflow: hidden;
+    /* メインスクロールバーを消す */
 }
 
 /* Layout & Containers */
 .container {
-    max-width: 900px;
-    margin: 0 auto;
+    width: 100%;
+    height: 100%;
 }
 
 .card {
     background: white;
-    border-radius: 20px;
-    padding: 30px;
-    margin-bottom: 20px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    /* 角丸削減 */
+    padding: 10px;
+    /* 30px -> 10px */
+    margin-bottom: 0;
+    /* 余白削除 */
+    box-shadow: none;
+    /* フラットに */
+    height: 100%;
+    /* 全画面使う */
+    display: flex;
+    flex-direction: column;
 }
 
 .header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 30px;
+    margin-bottom: 10px;
+    /* 30px -> 10px */
 }
 
 /* Typography */
 .title {
-    font-size: 28px;
+    font-size: 14px;
+    /* 28px -> 14px */
     font-weight: bold;
     color: #333;
+    display: flex;
+    align-items: center;
 }
 
 .subtitle {
     color: #666;
-    font-size: 14px;
-    margin-top: 5px;
+    font-size: 10px;
+    /* 14px -> 10px */
+    margin-top: 2px;
 }
 
 /* Status Indicators */
 .status {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 20px;
+    gap: 4px;
+    /* 10px -> 4px */
+    padding: 4px 8px;
+    /* 10px 20px -> 4px 8px */
     background: #f0f9ff;
-    border-radius: 10px;
+    border-radius: 4px;
 }
 
 .status-dot {
-    width: 12px;
-    height: 12px;
+    width: 6px;
+    /* 12px -> 6px */
+    height: 6px;
     border-radius: 50%;
     background: #22c55e;
     animation: pulse 2s infinite;
@@ -80,16 +99,18 @@ body {
 /* Info Box */
 .info-box {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    padding: 20px;
-    border-radius: 15px;
-    margin-bottom: 20px;
+    padding: 8px;
+    /* 20px -> 8px */
+    border-radius: 6px;
+    margin-bottom: 10px;
     color: white;
 }
 
 .info-label {
-    font-size: 14px;
+    font-size: 10px;
+    /* 14px -> 10px */
     opacity: 0.9;
-    margin-bottom: 8px;
+    margin-bottom: 2px;
 }
 
 .info-value {
@@ -97,11 +118,13 @@ body {
     align-items: center;
     justify-content: space-between;
     font-family: monospace;
-    font-size: 18px;
+    font-size: 12px;
+    /* 18px -> 12px */
     font-weight: bold;
     background: rgba(255, 255, 255, 0.2);
-    padding: 12px 16px;
-    border-radius: 10px;
+    padding: 4px 8px;
+    /* 12px 16px -> 4px 8px */
+    border-radius: 4px;
 }
 
 /* Buttons */

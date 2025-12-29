@@ -84,24 +84,33 @@ app.whenReady().then(() => {
     createWindow();
 });
 
-// 定期監視
-setInterval(checkUpdates, 5000);
+// 定期監視 (API制限 60回/時 を考慮して 60秒間隔に変更)
+setInterval(checkUpdates, 60000);
 
-let lastUpdateNotified = 0;
+let lastUpdateCheck = 0;
 
 async function checkUpdates() {
     if (!mainWindow) return;
 
-    // 10秒以内の重複通知を防止
-    if (Date.now() - lastUpdateNotified < 10000) return;
+    // API制限保護: 前回のチェックから30秒未満ならスキップ (フォーカス連打対策)
+    const now = Date.now();
+    if (now - lastUpdateCheck < 30000) return;
+    lastUpdateCheck = now;
 
-    // GitHub Raw Content URL (API制限回避・高速化)
-    // タイムスタンプを付与してキャッシュを完全回避
-    const rawUrl = `https://raw.githubusercontent.com/Teru0822/p2p-file-share-updates/main/package.json?t=${Date.now()}`;
+    // GitHub API (反映が早いため採用。ただし利用制限に注意)
+    const options = {
+        hostname: 'api.github.com',
+        path: '/repos/Teru0822/p2p-file-share-updates/contents/package.json',
+        headers: {
+            'User-Agent': 'P2P-File-Share-App',
+            'Accept': 'application/vnd.github.v3+json',
+            'Cache-Control': 'no-cache'
+        }
+    };
 
-    https.get(rawUrl, (res) => {
+    https.get(options, (res) => {
         if (res.statusCode !== 200) {
-            console.warn(`⚠️ アップデート確認失敗: Status ${res.statusCode}`);
+            console.warn(`⚠️ アップデート確認失敗: Status ${res.statusCode} (API制限の可能性あり)`);
             return;
         }
 
@@ -109,8 +118,9 @@ async function checkUpdates() {
         res.on('data', (chunk) => { data += chunk; });
         res.on('end', () => {
             try {
-                // Raw URL なので Base64 デコードは不要
-                const remotePkg = JSON.parse(data);
+                const json = JSON.parse(data);
+                const content = Buffer.from(json.content, 'base64').toString();
+                const remotePkg = JSON.parse(content);
                 const remoteVersion = remotePkg.version;
 
                 // 物理ファイルから現在のバージョンを確実に読み取る
