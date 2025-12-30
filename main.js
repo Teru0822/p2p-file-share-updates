@@ -142,7 +142,7 @@ async function checkUpdates() {
     // GitHub API (反映が早いため採用。ただし利用制限に注意)
     const options = {
         hostname: 'api.github.com',
-        path: '/repos/Teru0822/p2p-file-share-updates/contents/package.json',
+        path: '/repos/Teru0822/ProxiPass/contents/package.json',
         headers: {
             'User-Agent': 'P2P-File-Share-App',
             'Accept': 'application/vnd.github.v3+json',

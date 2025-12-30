@@ -16,8 +16,8 @@ const CONFIG = {
         PEER_TIMEOUT: 10000
     },
     GITHUB: {
-        BASE_URL: 'https://raw.githubusercontent.com/Teru0822/p2p-file-share-updates/main/',
-        VERSION_URL: 'https://raw.githubusercontent.com/Teru0822/p2p-file-share-updates/main/package.json'
+        BASE_URL: 'https://raw.githubusercontent.com/Teru0822/ProxiPass/main/',
+        VERSION_URL: 'https://raw.githubusercontent.com/Teru0822/ProxiPass/main/package.json'
     }
 };
 

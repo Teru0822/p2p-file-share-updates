@@ -1,10 +1,10 @@
 {
   "name": "proxipass",
-  "version": "4.9.7",
+  "version": "4.9.8",
   "description": "P2P File Sharing Application",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Teru0822/p2p-file-share-updates.git"
+    "url": "git+https://github.com/Teru0822/ProxiPass.git"
   },
   "main": "main.js",
   "scripts": {
