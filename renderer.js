@@ -69,6 +69,24 @@ const Utils = {
             reader.onerror = reject;
             reader.readAsArrayBuffer(file);
         });
+    },
+
+    getBroadcastAddresses() {
+        const list = [];
+        const interfaces = os.networkInterfaces();
+        for (const name of Object.keys(interfaces)) {
+            for (const iface of interfaces[name]) {
+                if (iface.family === 'IPv4' && !iface.internal) {
+                    // Calculate broadcast address: using simple bitwise OR with inverse mask
+                    // Since JS bitwise operations are 32-bit signed integers, we process per octet
+                    const addr = iface.address.split('.').map(Number);
+                    const mask = iface.netmask.split('.').map(Number);
+                    const broadcast = addr.map((a, i) => (a | (~mask[i] & 255))).join('.');
+                    list.push(broadcast);
+                }
+            }
+        }
+        return list;
     }
 };
 
@@ -129,9 +147,20 @@ class NetworkManager {
             name: this.myName,
             ip: this.myIP
         });
+
+        // 1. Send to Limited Broadcast Address (255.255.255.255)
         try {
             this.broadcastSocket.send(message, CONFIG.PORTS.BROADCAST, '255.255.255.255');
         } catch (err) { }
+
+        // 2. Send to Directed Broadcast Addresses (e.g. 192.168.1.255)
+        // これにより、デフォルトルート以外のインターフェースや特定のネットワーク構成でもパケットが届くようになる
+        const addresses = Utils.getBroadcastAddresses();
+        addresses.forEach(addr => {
+            try {
+                this.broadcastSocket.send(message, CONFIG.PORTS.BROADCAST, addr);
+            } catch (err) { }
+        });
     }
 
     setupTransferServer() {
